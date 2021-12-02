@@ -573,6 +573,15 @@ private:
     const TestCase test_case;
 
     const unsigned n_refinement;
+
+    const double theta = 1.;
+
+    const double density_s, density_l, density_g;
+    const double inv_density_s, inv_density_l, inv_density_g;
+    const double cl,cs,cg;
+    const double eta_l,eta_s,eta_g;
+
+    double present_timestep;
 };
 
 
@@ -636,6 +645,15 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , eps(0.01)
     , test_case(testcase)
     , n_refinement(7)
+    , density_s(2.)
+    , density_l(1.)
+    , density_g(0.1)
+    , inv_density_s(1./density_s)
+    , inv_density_l(1./density_l)
+    , inv_density_g(1./density_g)
+    , present_timestep(0.001)
+    , cl(1.), cs(1.), cg(1.)
+    , eta_l(1.), eta_s(1.), eta_g(1.)
 {
 
 
@@ -855,6 +873,11 @@ void StokesProblem<dim>::assemble_system()
     preconditioner_matrix = 0;
     system_rhs            = 0;
 
+    SymmetricTensor<2, dim> id_tensor;
+    for (unsigned int d = 0; d < dim; ++d)
+      id_tensor[d][d] = 1.;
+
+    // todo: check if it's accurate enough
     const QGauss<dim> quadrature_formula(velocity_degree + 2);
 
     FEValues<dim> fe_values(fe,
@@ -869,18 +892,56 @@ void StokesProblem<dim>::assemble_system()
     FullMatrix<double> cell_matrix2(dofs_per_cell, dofs_per_cell);
     Vector<double>     cell_rhs(dofs_per_cell);
 
-    const RightHandSide<dim>    right_hand_side;
-    std::vector<Vector<double>> rhs_values(n_q_points, Vector<double>(dim + 1));
+    std::vector<double>         phi_star(n_q_points);
+    std::vector<double>         phi_n(n_q_points);
+    std::vector<double>         psi_star(n_q_points);
+    std::vector<double>         psi_n(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_phi_star(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_phi_n(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_psi_star(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_psi_n(n_q_points);
 
-    std::vector<Tensor<2, dim>> grad_phi_u(dofs_per_cell);
-    std::vector<double>         div_phi_u(dofs_per_cell);
-    std::vector<double>         phi_p(dofs_per_cell);
+    std::vector<Tensor<1,dim>>  vel_star(n_q_points);
+    std::vector<Tensor<1,dim>>  vel_n(n_q_points);
+    std::vector<Tensor<2,dim>>  grad_vel_star(n_q_points);
+    std::vector<Tensor<2,dim>>  grad_vel_n(n_q_points);
+
+    // shape functions:
+    std::vector<double> shape_phi(dofs_per_cell);
+    std::vector<double> shape_psi(dofs_per_cell);
+    std::vector<double> shape_phi_theta(dofs_per_cell);
+    std::vector<double> shape_psi_theta(dofs_per_cell);
+
+    std::vector<Tensor<1,dim>> grad_shape_phi(dofs_per_cell);
+    std::vector<Tensor<1,dim>> grad_shape_phi_theta(dofs_per_cell);
+    std::vector<Tensor<1,dim>> grad_shape_psi(dofs_per_cell);
+    std::vector<Tensor<1,dim>> grad_shape_psi_theta(dofs_per_cell);
+
+    std::vector<double> shape_inv_rho_theta(dofs_per_cell);
+    std::vector<double> shape_inv_rho_partial_phi_theta(dofs_per_cell);
+    std::vector<double> shape_inv_rho_partial_psi_theta(dofs_per_cell);
+    std::vector<double> shape_rho_theta(dofs_per_cell);
+
+    // delta H_theta_star
+    std::vector<double> shape_h_ts(dofs_per_cell);
+    // delta grad_inv_rho_theta
+    std::vector<Tensor<1,dim>> grad_shape_inv_rho_theta(dofs_per_cell);
+
+    std::vector<Tensor<2, dim>> grad_shape_vel(dofs_per_cell);
+    std::vector<Tensor<1, dim>> shape_vel(dofs_per_cell);
+    std::vector<double>         shape_div_vel(dofs_per_cell);
+    std::vector<double>         shape_pressure(dofs_per_cell);
+    std::vector<Tensor<1, dim>> shape_vel_theta(dofs_per_cell);
+
+    std::vector<double>         shape_c_theta(dofs_per_cell);
+    std::vector<double>         shape_c_partial_phi_theta(dofs_per_cell);
+    std::vector<double>         shape_c_partial_psi_theta(dofs_per_cell);
+
+    std::vector<double>         shape_eta_theta(dofs_per_cell);
+
+    std::vector<Tensor<2,dim>>  shape_e_theta(dofs_per_cell);
 
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-    const FEValuesExtractors::Vector     velocities(0);
-    const FEValuesExtractors::Scalar     pressure(dim);
-
-    std::vector<double> delta_h_theta; // delta_H_theta
 
     for (const auto &cell : dof_handler.active_cell_iterators())
         if (cell->is_locally_owned())
@@ -890,18 +951,158 @@ void StokesProblem<dim>::assemble_system()
             cell_rhs     = 0;
 
             fe_values.reinit(cell);
-            right_hand_side.vector_value_list(fe_values.get_quadrature_points(),
-                                              rhs_values);
+            fe_values[extractors.phi_ch].get_function_values(current_solution, phi_star);
+            fe_values[extractors.phi_ch].get_function_values(old_solution, phi_n);
+            fe_values[extractors.psi_ac].get_function_values(current_solution, psi_star);
+            fe_values[extractors.psi_ac].get_function_values(old_solution, psi_n);
+
+            fe_values[extractors.phi_ch].get_function_gradients(current_solution, grad_phi_star);
+            fe_values[extractors.phi_ch].get_function_gradients(old_solution, grad_phi_n);
+            fe_values[extractors.psi_ch].get_function_gradients(current_solution, grad_psi_star);
+            fe_values[extractors.psi_ch].get_function_gradients(old_solution, grad_psi_n);
+
+            fe_values[extractors.velocities].get_function_values(current_solution, vel_star);
+            fe_values[extractors.velocities].get_function_values(old_solution, vel_n);
+            fe_values[extractors.velocities].get_function_gradients(current_solution, grad_vel_star);
+            fe_values[extractors.velocities].get_function_gradients(old_solution, grad_vel_n);
+
             for (unsigned int q = 0; q < n_q_points; ++q)
             {
-                for (unsigned int k = 0; k < dofs_per_cell; ++k)
-                {
-                    grad_phi_u[k] = fe_values[velocities].gradient(k, q);
-                    div_phi_u[k]  = fe_values[velocities].divergence(k, q);
-                    phi_p[k]      = fe_values[pressure].value(k, q);
-                }
+              // ts: theta star
+              const double c1 = 1.-theta;
+              const double phi_ts = theta * phi_star[q] + c1 * phi_n[q];
+              const double psi_ts = theta * psi_star[q] + c1 * psi_n[q];
+              const Tensor<1,dim> grad_phi_ts = theta * grad_phi_star[q] + c1 * grad_phi_n[q];
+              const Tensor<1,dim> grad_psi_ts = theta * grad_psi_star[q] + c1 * grad_psi_n[q];
+              const Tensor<1,dim> vel_ts = theta * vel_star[q] + c1 * vel_n[q];
+              const Tensor<2,dim> grad_vel_ts = theta * grad_vel_star[q] + c1 * grad_vel_n[q];
+              const double div_vel_ts = trace(grad_vel_ts);
 
-//                const double h_theta_star =
+              const double inv_rho_ts = InlineFunctions::f(phi_ts,
+                                                                   psi_ts,
+                                                                   inv_density_l,
+                                                                   inv_density_s,
+                                                                   inv_density_g);
+              const double rho_ts = 1./ inv_rho_ts;
+              const double rho_ts_square = rho_ts * rho_ts;
+
+              const double inv_rho_partial_phi_ts =
+                  InlineFunctions::f_partial_phi(phi_ts,
+                                                 psi_ts,
+                                                 inv_density_l,
+                                                 inv_density_s,
+                                                 inv_density_g);
+              const double inv_rho_partial_psi_ts =
+                  InlineFunctions::f_partial_psi(phi_ts,
+                                                 psi_ts,
+                                                 inv_density_l,
+                                                 inv_density_s);
+              const double inv_rho_partial2_phi2_ts =
+                  InlineFunctions::f_partial2_phi2(phi_ts,
+                                                   psi_ts,
+                                                   inv_density_l,
+                                                   inv_density_s,
+                                                   inv_density_g);
+              const double inv_rho_partial2_psi2_ts =
+                  InlineFunctions::f_partial2_psi2(phi_ts,
+                                                   psi_ts,
+                                                   inv_density_l,
+                                                   inv_density_s);
+              const double inv_rho_partial_phi_partial_psi =
+                  InlineFunctions::f_partial_phi_partial_psi(phi_ts,
+                                                             psi_ts,
+                                                             inv_density_l,
+                                                             inv_density_l);
+
+              const double rho_partial_phi_ts = -rho_ts_square * inv_rho_partial_phi_ts;
+              const double rho_partial_psi_ts = -rho_ts_square * inv_rho_partial_psi_ts;
+
+              const double material_derivative_ts = ((phi_star[q] - phi_n[q])/present_timestep + vel_ts * grad_phi_ts);
+              const double h_ts = rho_ts * material_derivative_ts;
+
+              const Tensor<1,dim> grad_inv_rho_ts = inv_rho_partial_phi_ts * grad_phi_ts + inv_rho_partial_psi_ts * grad_psi_ts;
+
+              const double c_ts = InlineFunctions::f(phi_ts,
+                                                     psi_ts,
+                                                     cl, cs, cg);
+              const double c_partial_phi_ts = InlineFunctions::f_partial_phi(phi_ts,
+                                                                             psi_ts,
+                                                                             cl, cs, cg);
+              const double c_partial_psi_ts = InlineFunctions::f_partial_psi(phi_ts,
+                                                                             psi_ts,
+                                                                             cl, cs);
+              const double c_partial2_phi2_ts = InlineFunctions::f_partial2_phi2(phi_ts,
+                                                                              psi_ts,
+                                                                              cl, cs, cg);
+              const double c_partial2_psi2_ts = InlineFunctions::f_partial2_psi2(phi_ts,
+                                                                              psi_ts,
+                                                                              cl, cs);
+              const double c_partial_phi_partial_psi_ts = InlineFunctions::f_partial_phi_partial_psi(phi_ts,
+                                                                                                  psi_ts,
+                                                                                                  cl, cs);
+
+              const double eta_ts = InlineFunctions::g(phi_ts,
+                                                       psi_ts,
+                                                       eta_l,
+                                                       eta_s,
+                                                       eta_g);
+              const double eta_partial_phi_ts = InlineFunctions::g_pratial_phi(psi_ts, eta_l, eta_s, eta_g);
+              const double eta_partial_psi_ts = InlineFunctions::g_pratial_psi(phi_ts, eta_l, eta_s);
+
+              // E_theta_star
+              const Tensor<2,dim> e_ts = grad_vel_ts + transpose(grad_vel_ts) -  2./3. * div_vel_ts * id_tensor;
+
+              for (unsigned int k = 0; k < dofs_per_cell; ++k)
+                {
+                  shape_phi[k]       = fe_values[extractors.phi_ch].value(k, q);
+                  shape_psi[k]       = fe_values[extractors.psi_ch].value(k, q);
+                  shape_phi_theta[k] = theta * shape_phi[k];
+                  shape_psi_theta[k] = theta * shape_psi[k];
+
+                  grad_shape_phi[k]       = fe_values[extractors.phi_ch].gradient(k, q);
+                  grad_shape_phi_theta[k] = theta * grad_shape_phi[k];
+                  grad_shape_psi[k]       = fe_values[extractors.psi_ch].gradient(k, q);
+                  grad_shape_psi_theta[k] = theta * grad_shape_psi[k];
+
+                  shape_vel[k]       = fe_values[extractors.velocities].value(k, q);
+                  shape_vel_theta[k] = theta * shape_vel[k];
+                  grad_shape_vel[k] = fe_values[extractors.velocities].gradient(k, q);
+                  shape_div_vel[k]  = fe_values[extractors.velocities].divergence(k, q);
+                  shape_pressure[k] = fe_values[extractors.pressure].value(k, q);
+
+                  shape_inv_rho_theta[k] = inv_rho_partial_phi_ts * shape_phi_theta[k]
+                      + inv_rho_partial_psi_ts * shape_psi_theta[k];
+                  shape_rho_theta[k]     = rho_partial_phi_ts * shape_phi_theta[k]
+                      + rho_partial_psi_ts * shape_psi_theta[k];
+
+                  shape_inv_rho_partial_phi_theta[k] = inv_rho_partial2_phi2_ts * shape_phi_theta[k]
+                      + inv_rho_partial_phi_partial_psi * shape_psi_theta[k];
+                  shape_inv_rho_partial_psi_theta[k] = inv_rho_partial_phi_partial_psi * shape_phi_theta[k]
+                      + inv_rho_partial2_psi2_ts * shape_psi_theta[k];
+
+                  shape_h_ts[k] = shape_rho_theta[k] * material_derivative_ts
+                      + rho_ts * (shape_phi[k]/present_timestep + shape_vel_theta[k] * grad_phi_ts
+                                  + vel_ts * grad_shape_phi_theta[k]);
+
+                  grad_shape_inv_rho_theta[k] = shape_inv_rho_partial_phi_theta[k] * grad_phi_ts
+                      + shape_inv_rho_partial_psi_theta[k] * grad_psi_ts
+                      + inv_rho_partial_phi_ts * grad_shape_phi_theta[k]
+                      + inv_rho_partial_psi_ts * grad_shape_psi_theta[k];
+
+                  shape_c_theta[k] = c_partial_phi_ts * shape_phi_theta[k]
+                      + c_partial_psi_ts * shape_psi_theta[k];
+                  shape_c_partial_phi_theta[k] = c_partial2_phi2_ts * shape_phi_theta[k]
+                      + c_partial_phi_partial_psi_ts * shape_psi_theta[k];
+                  shape_c_partial_psi_theta[k] = c_partial_phi_partial_psi_ts * shape_phi_theta[k]
+                      + c_partial2_psi2_ts * shape_psi_theta[k];
+
+                  shape_eta_theta[k] = eta_partial_phi_ts * shape_phi_theta[k]
+                      + eta_partial_psi_ts * shape_psi_theta[k];
+
+                  shape_e_theta = theta * (grad_shape_vel[k] + transpose(grad_shape_vel[k]) + 2./3. * shape_div_vel[k] * id_tensor);
+
+
+                }
 
                 for (unsigned int i = 0; i < dofs_per_cell; ++i)
                 {
@@ -926,8 +1127,7 @@ void StokesProblem<dim>::assemble_system()
 
                     const unsigned int component_i =
                         fe.system_to_component_index(i).first;
-                    cell_rhs(i) += fe_values.shape_value(i, q) *
-                                   rhs_values[q](component_i) * fe_values.JxW(q);
+                    cell_rhs(i) += fe_values.shape_value(i, q) * fe_values.JxW(q);
                 }
             }
 
