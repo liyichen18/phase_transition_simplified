@@ -31,7 +31,7 @@ namespace LA
 #if defined(DEAL_II_WITH_PETSC) && !defined(DEAL_II_PETSC_WITH_COMPLEX) && \
   !(defined(DEAL_II_WITH_TRILINOS) && defined(FORCE_USE_OF_TRILINOS))
 using namespace dealii::LinearAlgebraPETSc;
-#  define USE_PETSC_LA
+//#  define USE_PETSC_LA
 #elif defined(DEAL_II_WITH_TRILINOS)
 using namespace dealii::LinearAlgebraTrilinos;
 #else
@@ -80,7 +80,272 @@ namespace Step55
 {
 using namespace dealii;
 
+  enum class TestCase
+  {
+    test1,
+    test2
+  };
+  static const char *enum_str[] = {"test1", "test2"};
 
+namespace InlineFunctions
+{
+  inline
+  double r(const double phi)
+  {
+    if(phi<0.)
+      return 0.;
+    else if(phi>1.)
+      return 1.;
+    else
+      return std::pow(phi, 3.) * (10. - 15. * phi + 6. * phi * phi);
+  }
+
+  inline
+  double r_prime(const double phi)
+  {
+    if(phi<0.)
+      return 0.;
+    else if(phi>1.)
+      return 1.;
+    else
+      return 30. * phi * phi * (1. - phi) * (1. - phi);
+  }
+
+  inline
+  double r_prime_prime(const double phi)
+  {
+    if(phi<0.)
+      return 0.;
+    else if(phi>1.)
+      return 1.;
+    else
+      return 60. * phi * (1. - phi) * (1. - 2. * phi);
+  }
+
+  // used in wall energy
+  inline
+  double q(const double phi)
+  {
+    return (1. - std::cos(numbers::PI * phi)) * 0.5;
+  }
+
+  inline
+  double q_prime(const double phi)
+  {
+    return  std::sin(numbers::PI * phi) * 0.5 * numbers::PI;
+  }
+
+  // interpolation functions for 1/rho, c
+  inline
+  double f(const double phi, const double psi,
+                    const double fl, const double fs, const double fg)
+  {
+    return  fl * r(phi) * r(psi) +
+            fs * r(phi) * (1.-r(psi)) +
+            fg * (1. - r(phi));
+  }
+
+  // partial f/ partial phi
+  inline
+  double f_partial_phi(const double phi, const double psi,
+                    const double fl, const double fs, const double fg)
+  {
+    return  r_prime(phi) * (r(psi) * (fl - fs) - fg);
+  }
+
+  // partial f/ partial psi
+  inline
+  double f_partial_psi(const double phi, const double psi,
+                    const double fl, const double fs)
+  {
+    return  r(phi) * r_prime(psi) * (fl - fs);
+  }
+
+  // partial^2 f/ partial phi^2
+  inline
+  double f_partial2_phi2(const double phi, const double psi,
+                    const double fl, const double fs, const double fg)
+  {
+    return  r_prime_prime(phi) * (r(psi) * (fl - fs) - fg);
+  }
+
+  // partial^2 f/ partial psi^2
+  inline
+  double f_partial2_psi2(const double phi, const double psi,
+                    const double fl, const double fs)
+  {
+    return  r(phi) * r_prime_prime(psi) * (fl - fs);
+  }
+
+  // partial f/ (partial phi partial psi)
+  inline
+  double f_partial_phi_partial_psi(const double phi, const double psi,
+                    const double fl, const double fs)
+  {
+    return  r_prime(phi) * r_prime(psi) * (fl - fs);
+  }
+
+  // interpolation function for eta
+
+  inline
+  double g(const double phi, const double psi,
+                    const double gl, const double gs, const double gg)
+  {
+    return  gl * phi * psi + gs * phi * (1.-psi) + gg * (1. - phi);
+  }
+
+  inline
+  double g_pratial_phi(const double psi,
+                    const double gl, const double gs, const double gg)
+  {
+    return  psi * (gl - gg) + gs;
+  }
+
+  inline
+  double g_pratial_psi(const double phi,
+                    const double gl, const double gs)
+  {
+    return  phi * (gl - gs);
+  }
+
+  // double-well potential
+
+  inline
+  double w(const double phi, const double eps)
+  {
+    return  phi * phi * (1. - phi) * (1. - phi) / (eps*eps);
+  }
+
+  inline
+  double w_prime(const double phi, const double eps)
+  {
+    return  2. * phi * (1. - phi) * (1. - 2.*phi) / (eps*eps);
+  }
+
+  inline
+  double w_prime_prime(const double phi, const double eps)
+  {
+    return  (2.  - 12. * phi + 12. * phi * phi) / (eps*eps);
+  }
+
+} //namespace inline funcitons
+
+  template <int dim>
+  struct ComponentIndices
+  {
+    const unsigned int       velocities = 0;
+    const unsigned int       pressure = dim;
+    const unsigned int       temperature = dim + 1;
+    const unsigned int       phi_ch = dim + 2;   //CH
+    const unsigned int       mu_phi_ch = dim + 3;
+    const unsigned int       psi_ac = dim + 4;   //AC
+    const unsigned int       mu_psi_ac = dim + 5;
+  };
+
+  template <int dim>
+  struct Extractors
+  {
+    Extractors (const ComponentIndices<dim> &component_indices)
+      : velocities(component_indices.velocities)
+      , pressure(component_indices.pressure)
+      , temperature((component_indices.temperature))
+      , phi_ch(component_indices.phi_ch)
+      , mu_phi_ch(component_indices.mu_phi_ch)
+      , psi_ac(component_indices.psi_ac)
+      , mu_psi_ac(component_indices.mu_psi_ac)
+    {}
+
+    Extractors (const Extractors<dim> &ex)
+      : velocities(ex.velocities.first_vector_component)
+      , pressure(ex.pressure.component)
+      , temperature(ex.temperature.component)
+      , phi_ch(ex.phi_ch.component)
+      , mu_phi_ch(ex.mu_phi_ch.component)
+      , psi_ac(ex.psi_ac.component)
+      , mu_psi_ac(ex.mu_psi_ac.component)
+    {}
+
+    FEValuesExtractors::Vector              velocities;
+    FEValuesExtractors::Scalar              pressure;
+    FEValuesExtractors::Scalar              temperature;
+    FEValuesExtractors::Scalar              phi_ch;   //CH
+    FEValuesExtractors::Scalar              mu_phi_ch;
+    FEValuesExtractors::Scalar              psi_ac;   //AC
+    FEValuesExtractors::Scalar              mu_psi_ac;
+  };
+
+namespace InitialConditions
+{
+
+
+  template <int dim>
+  class InitialValues : public Function<dim>
+  {
+  public:
+      InitialValues (const double epsilon, const TestCase testcase, const Extractors<dim> &ex)
+                  : Function<dim>(dim + 6),
+                    eps(epsilon),
+                    test_case(testcase),
+                    extractors(ex)
+                    {}
+
+      virtual void vector_value(const Point<dim> &p,
+                                Vector<double> &  value) const override;
+  private:
+      const double eps;
+      const TestCase test_case;
+      const Extractors<dim> extractors;
+
+  };
+
+  template <int dim>
+  void InitialValues<dim>::vector_value(const Point<dim> &p,
+                                        Vector<double> &  values) const
+  {
+      const double eps1=eps*sqrt(2);  //sqrt(2)* eps
+      double d=0;
+
+      switch (test_case)
+        {
+        case TestCase::test1: {
+            Point<dim> center, axes;
+            double radius;
+            switch (dim)
+              {
+              case 2: //2D case
+                {
+                  center=Point<dim>(0,0);
+                  axes=Point<dim>(0.5,0.5);
+                  radius=sqrt(axes(0)*axes(1));
+                  break;
+                }
+              case 3: //3D case
+                {
+                  center=Point<dim>(0,0,0);
+                  axes=Point<dim>(0.5,0.5,0.5);
+                  radius=pow(axes(0)*axes(1)*axes(2),1./3.);
+                  break;
+                }
+              }
+            for(unsigned int i=0; i<dim; i++)
+              d+=pow(p(i)/axes(i),2);
+            d=(sqrt(d)-1)*radius;
+
+            break;
+          }
+        case TestCase::test2: {
+
+            break;
+          }
+        default:
+          Assert(false, ExcNotImplemented("Please choose the right test case"));
+        }
+      double phi=-tanh(d/eps1);
+      values(extractors.phi_ch.component) = phi;
+
+  }
+
+}// namespace initialcondition
 
 namespace LinearSolvers
 {
@@ -252,13 +517,14 @@ template <int dim>
 class StokesProblem
 {
 public:
-    StokesProblem(unsigned int velocity_degree);
+    StokesProblem(unsigned int velocity_degree, const TestCase & testcase);
 
     void run();
 
 private:
     void make_grid();
     void setup_system();
+    void setup_initial_condition();
     void make_boundary_constraints();
     Table<2, DoFTools::Coupling> make_coupling();
     void assemble_system();
@@ -290,45 +556,23 @@ private:
 
     LA::MPI::BlockSparseMatrix system_matrix;
     LA::MPI::BlockSparseMatrix preconditioner_matrix;
-    LA::MPI::BlockVector       locally_relevant_solution;
+    LA::MPI::BlockVector       locally_relevant_solution; //u_n+1
+    LA::MPI::BlockVector       old_solution; //u_n
+    LA::MPI::BlockVector       current_solution; //u_*
     LA::MPI::BlockVector       system_rhs;
+    LA::MPI::BlockVector       newton_update;
 
     ConditionalOStream pcout;
     TimerOutput        computing_timer;
 
-    struct ComponentIndices
-    {
-      const unsigned int       velocities = 0;
-      const unsigned int       pressure = dim;
-      const unsigned int       temperature = dim + 1;
-      const unsigned int       phi_ch = dim + 2;   //CH
-      const unsigned int       mu_phi_ch = dim + 3;
-      const unsigned int       psi_ac = dim + 4;   //AC
-      const unsigned int       mu_psi_ac = dim + 5;
-    };
+    const ComponentIndices<dim> component_ids;
+    const Extractors<dim> extractors;
 
-    struct Extractors
-    {
-      Extractors (const ComponentIndices &component_indices)
-        : velocities(component_indices.velocities)
-        , pressure(component_indices.pressure)
-        , temperature((component_indices.temperature))
-        , phi_ch(component_indices.phi_ch)
-        , mu_phi_ch(component_indices.mu_phi_ch)
-        , psi_ac(component_indices.psi_ac)
-        , mu_psi_ac(component_indices.mu_psi_ac)
-      {}
+    const double eps;
 
-      FEValuesExtractors::Vector              velocities;
-      FEValuesExtractors::Scalar              pressure;
-      FEValuesExtractors::Scalar              temperature;
-      FEValuesExtractors::Scalar              phi_ch;   //CH
-      FEValuesExtractors::Scalar              mu_phi_ch;
-      FEValuesExtractors::Scalar              psi_ac;   //AC
-      FEValuesExtractors::Scalar              mu_psi_ac;
-    };
-    const ComponentIndices component_ids;
-    const Extractors extractors;
+    const TestCase test_case;
+
+    const unsigned n_refinement;
 };
 
 
@@ -369,7 +613,8 @@ StokesProblem<dim>::create_fe_multiplicities()
 }
 
 template <int dim>
-StokesProblem<dim>::StokesProblem(unsigned int velocity_degree)
+StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
+                                  const TestCase &testcase)
     : velocity_degree(velocity_degree)
     , viscosity(0.1)
     , mpi_communicator(MPI_COMM_WORLD)
@@ -386,8 +631,11 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree)
                       pcout,
                       TimerOutput::summary,
                       TimerOutput::wall_times)
-    , component_ids(ComponentIndices())
-    , extractors(ComponentIndices())
+    , component_ids(ComponentIndices<dim>())
+    , extractors(ComponentIndices<dim>())
+    , eps(0.01)
+    , test_case(testcase)
+    , n_refinement(7)
 {
 
 
@@ -399,8 +647,20 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree)
 template <int dim>
 void StokesProblem<dim>::make_grid()
 {
-    GridGenerator::hyper_cube(triangulation, -0.5, 1.5);
-    triangulation.refine_global(3);
+    GridGenerator::hyper_cube(triangulation, 0., 1.);
+    triangulation.refine_global(7);
+}
+
+template <int dim>
+void StokesProblem<dim>::setup_initial_condition()
+{
+  LA::MPI::BlockVector tmp_initial_sol;
+  tmp_initial_sol.reinit(owned_partitioning, mpi_communicator);
+  VectorTools::interpolate(dof_handler,
+                           InitialConditions::InitialValues<dim>(eps, test_case, extractors),
+                           tmp_initial_sol);
+
+  locally_relevant_solution = tmp_initial_sol;
 }
 
 template <int dim>
@@ -412,7 +672,7 @@ void StokesProblem<dim>::make_boundary_constraints()
   DoFTools::make_hanging_node_constraints(dof_handler, constraints);
   VectorTools::interpolate_boundary_values(dof_handler,
                                            0,
-                                           ExactSolution<dim>(),
+                                           InitialConditions::InitialValues<dim>(eps, test_case, extractors),
                                            constraints,
                                            fe.component_mask(extractors.velocities));
   constraints.close();
@@ -427,10 +687,7 @@ Table<2, DoFTools::Coupling> StokesProblem<dim>::make_coupling()
   Table<2, DoFTools::Coupling> coupling(n_components, n_components);
   for (unsigned int c = 0; c < n_components; ++c)
     for (unsigned int d = 0; d < n_components; ++d)
-      if (c == component_ids.pressure
-          && d == component_ids.pressure)
-        coupling[c][d] = DoFTools::none;
-      else if (c == component_ids.temperature
+      if (c == component_ids.temperature
                && d != component_ids.pressure)
         coupling[c][d] = DoFTools::always;
       else if (c == component_ids.mu_phi_ch
@@ -454,8 +711,39 @@ Table<2, DoFTools::Coupling> StokesProblem<dim>::make_coupling()
                    || d == component_ids.mu_psi_ac))
         coupling[c][d] = DoFTools::always;
   //todo: navier stokes coupling
+      else if ((c >= component_ids.velocities && c < component_ids.velocities + dim)
+               && ((d >= component_ids.velocities && d < component_ids.velocities + dim)
+                   || d == component_ids.pressure
+                   || d == component_ids.phi_ch
+                   || d == component_ids.psi_ac))
+        coupling[c][d] = DoFTools::always;
+      else if (c == component_ids.pressure
+               && ((d >= component_ids.velocities && d < component_ids.velocities + dim)
+                   || d == component_ids.phi_ch
+                   || d == component_ids.psi_ac))
+        coupling[c][d] = DoFTools::always;
       else
         coupling[c][d] = DoFTools::none;
+
+  bool print_pattern = true;
+  if (print_pattern)
+    {
+      // visualize coupling
+      FullMatrix<double> cell_coupling_mat(n_components,
+                                           n_components);
+      for (unsigned int c = 0; c < n_components; ++c)
+        {
+          for (unsigned int d = 0; d < n_components; ++d)
+            {
+              if (coupling[c][d] == DoFTools::always)
+                cell_coupling_mat(c, d) = 1;
+            }
+        }
+      unsigned int mpi_rank    = Utilities::MPI::this_mpi_process(mpi_communicator);
+      pcout<<" coupling pattern: "<<std::endl;
+      if(mpi_rank == 0)
+        cell_coupling_mat.print(std::cout);
+    }
 
   return coupling;
 }
@@ -493,7 +781,7 @@ void StokesProblem<dim>::setup_system()
       pcout<< i <<"  "  ;
     pcout << ")"<< std::endl;
 
-    owned_partitioning.resize(n_components);
+    owned_partitioning.resize(n_blocks);
 
     unsigned int block_starting_id = 0;
     for(unsigned int i=0; i<n_blocks; ++i)
@@ -502,7 +790,7 @@ void StokesProblem<dim>::setup_system()
             dof_handler.locally_owned_dofs().get_view(block_starting_id,
                                                       block_starting_id + dofs_per_block[i]);
         block_starting_id += dofs_per_block[i];
-//        std::cout<<" owned partitioning size ( "<<i<<" ): "<<owned_partitioning[i].size()<<std::endl;
+        pcout<<" owned partitioning size ( "<<i<<" ): "<<owned_partitioning[i].size()<<std::endl;
       }
 
     locally_relevant_dofs.clear();
@@ -515,7 +803,7 @@ void StokesProblem<dim>::setup_system()
         relevant_partitioning[i] = locally_relevant_dofs.get_view(block_starting_id,
                                                                   block_starting_id + dofs_per_block[i]);
         block_starting_id += dofs_per_block[i];
-//        std::cout<<" relevant partitioning size ( "<<i<<" ): "<<relevant_partitioning[i].size()<<std::endl;
+//        pcout<<" relevant partitioning size ( "<<i<<" ): "<<relevant_partitioning[i].size()<<std::endl;
       }
 
     make_boundary_constraints();
@@ -538,39 +826,22 @@ void StokesProblem<dim>::setup_system()
             mpi_communicator,
             locally_relevant_dofs);
 
+//        std::cout<<" rows size: "<<owned_partitioning.size()
+//                << " n block rows: "<<dsp.n_block_rows()<<std::endl;
         system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
     }
 
-//    {
-//        preconditioner_matrix.clear();
-
-//        Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
-//        for (unsigned int c = 0; c < dim + 1; ++c)
-//            for (unsigned int d = 0; d < dim + 1; ++d)
-//                if (c == dim && d == dim)
-//                    coupling[c][d] = DoFTools::always;
-//                else
-//                    coupling[c][d] = DoFTools::none;
-
-//        BlockDynamicSparsityPattern dsp(dofs_per_block, dofs_per_block);
-
-//        DoFTools::make_sparsity_pattern(
-//            dof_handler, coupling, dsp, constraints, false);
-//        SparsityTools::distribute_sparsity_pattern(
-//            dsp,
-//            Utilities::MPI::all_gather(mpi_communicator,
-//                                       dof_handler.locally_owned_dofs()),
-//            mpi_communicator,
-//            locally_relevant_dofs);
-//        preconditioner_matrix.reinit(owned_partitioning,
-//                                     dsp,
-//                                     mpi_communicator);
-//    }
-
-//    locally_relevant_solution.reinit(owned_partitioning,
-//                                     relevant_partitioning,
-//                                     mpi_communicator);
-//    system_rhs.reinit(owned_partitioning, mpi_communicator);
+    locally_relevant_solution.reinit(owned_partitioning,
+                                     relevant_partitioning,
+                                     mpi_communicator);
+    old_solution.reinit(owned_partitioning,
+                        relevant_partitioning,
+                        mpi_communicator);
+    current_solution.reinit(owned_partitioning,
+                        relevant_partitioning,
+                        mpi_communicator);
+    system_rhs.reinit(owned_partitioning, mpi_communicator);
+    newton_update.reinit(owned_partitioning, mpi_communicator);
 }
 
 
@@ -584,7 +855,7 @@ void StokesProblem<dim>::assemble_system()
     preconditioner_matrix = 0;
     system_rhs            = 0;
 
-    const QGauss<dim> quadrature_formula(velocity_degree + 1);
+    const QGauss<dim> quadrature_formula(velocity_degree + 2);
 
     FEValues<dim> fe_values(fe,
                             quadrature_formula,
@@ -609,6 +880,8 @@ void StokesProblem<dim>::assemble_system()
     const FEValuesExtractors::Vector     velocities(0);
     const FEValuesExtractors::Scalar     pressure(dim);
 
+    std::vector<double> delta_h_theta; // delta_H_theta
+
     for (const auto &cell : dof_handler.active_cell_iterators())
         if (cell->is_locally_owned())
         {
@@ -628,10 +901,19 @@ void StokesProblem<dim>::assemble_system()
                     phi_p[k]      = fe_values[pressure].value(k, q);
                 }
 
+//                const double h_theta_star =
+
                 for (unsigned int i = 0; i < dofs_per_cell; ++i)
                 {
                     for (unsigned int j = 0; j < dofs_per_cell; ++j)
                     {
+                        double mat = 0;
+                        double rhs = 0;
+
+                        // w1, 2
+//                        mat +=
+//                        rhs +=
+
                         cell_matrix(i, j) +=
                             (viscosity *
                              scalar_product(grad_phi_u[i], grad_phi_u[j]) -
@@ -747,52 +1029,35 @@ void StokesProblem<dim>::refine_grid()
 template <int dim>
 void StokesProblem<dim>::output_results(const unsigned int cycle) const
 {
-    {
-        const ComponentSelectFunction<dim> pressure_mask(dim, dim + 1);
-        const ComponentSelectFunction<dim> velocity_mask(std::make_pair(0, dim),
-                dim + 1);
-
-        Vector<double> cellwise_errors(triangulation.n_active_cells());
-        QGauss<dim>    quadrature(velocity_degree + 2);
-
-        VectorTools::integrate_difference(dof_handler,
-                                          locally_relevant_solution,
-                                          ExactSolution<dim>(),
-                                          cellwise_errors,
-                                          quadrature,
-                                          VectorTools::L2_norm,
-                                          &velocity_mask);
-
-        const double error_u_l2 =
-            VectorTools::compute_global_error(triangulation,
-                                              cellwise_errors,
-                                              VectorTools::L2_norm);
-
-        VectorTools::integrate_difference(dof_handler,
-                                          locally_relevant_solution,
-                                          ExactSolution<dim>(),
-                                          cellwise_errors,
-                                          quadrature,
-                                          VectorTools::L2_norm,
-                                          &pressure_mask);
-
-        const double error_p_l2 =
-            VectorTools::compute_global_error(triangulation,
-                                              cellwise_errors,
-                                              VectorTools::L2_norm);
-
-        pcout << "error: u_0: " << error_u_l2 << " p_0: " << error_p_l2
-              << std::endl;
-    }
-
-
+    AssertDimension(extractors.velocities.first_vector_component, 0);
     std::vector<std::string> solution_names(dim, "velocity");
-    solution_names.emplace_back("pressure");
     std::vector<DataComponentInterpretation::DataComponentInterpretation>
     data_component_interpretation(
         dim, DataComponentInterpretation::component_is_part_of_vector);
-    data_component_interpretation.push_back(
-        DataComponentInterpretation::component_is_scalar);
+
+
+    for(unsigned int n=dim; n<fe.n_components(); ++n)
+      {
+        if(n == extractors.pressure.component)
+          solution_names.emplace_back("pressure");
+        else if(n == extractors.temperature.component)
+          solution_names.emplace_back("temperature");
+        else if(n == extractors.phi_ch.component)
+          solution_names.emplace_back("phi_ch");
+        else if(n == extractors.mu_phi_ch.component)
+          solution_names.emplace_back("mu_phi_ch");
+        else if(n == extractors.psi_ac.component)
+          solution_names.emplace_back("psi_ac");
+        else if(n == extractors.mu_psi_ac.component)
+          solution_names.emplace_back("mu_psi_ac");
+        else
+          {
+            ExcNotImplemented("output name no match!");
+          }
+        data_component_interpretation.push_back(
+            DataComponentInterpretation::component_is_scalar);
+
+      }
 
     DataOut<dim> data_out;
     data_out.attach_dof_handler(dof_handler);
@@ -800,24 +1065,6 @@ void StokesProblem<dim>::output_results(const unsigned int cycle) const
                              solution_names,
                              DataOut<dim>::type_dof_data,
                              data_component_interpretation);
-
-    LA::MPI::BlockVector interpolated;
-    interpolated.reinit(owned_partitioning, MPI_COMM_WORLD);
-    VectorTools::interpolate(dof_handler, ExactSolution<dim>(), interpolated);
-
-    LA::MPI::BlockVector interpolated_relevant(owned_partitioning,
-            relevant_partitioning,
-            MPI_COMM_WORLD);
-    interpolated_relevant = interpolated;
-    {
-        std::vector<std::string> solution_names(dim, "ref_u");
-        solution_names.emplace_back("ref_p");
-        data_out.add_data_vector(interpolated_relevant,
-                                 solution_names,
-                                 DataOut<dim>::type_dof_data,
-                                 data_component_interpretation);
-    }
-
 
     Vector<float> subdomain(triangulation.n_active_cells());
     for (unsigned int i = 0; i < subdomain.size(); ++i)
@@ -840,26 +1087,26 @@ void StokesProblem<dim>::run()
 #else
     pcout << "Running using Trilinos." << std::endl;
 #endif
-    const unsigned int n_cycles = 5;
-    for (unsigned int cycle = 0; cycle < n_cycles; ++cycle)
-    {
-        pcout << "Cycle " << cycle << ':' << std::endl;
 
-        if (cycle == 0)
-            make_grid();
-        else
-            refine_grid();
+
+    {
+        pcout << "n refinement " << n_refinement << ':' << std::endl;
+
+
+        make_grid();
+
 
         setup_system();
+        setup_initial_condition();
 
 //        assemble_system();
 //        solve();
 
-//        if (Utilities::MPI::n_mpi_processes(mpi_communicator) <= 32)
-//        {
-//            TimerOutput::Scope t(computing_timer, "output");
-//            output_results(cycle);
-//        }
+        if (Utilities::MPI::n_mpi_processes(mpi_communicator) <= 32)
+        {
+            TimerOutput::Scope t(computing_timer, "output");
+            output_results(n_refinement);
+        }
 
         computing_timer.print_summary();
         computing_timer.reset();
@@ -879,8 +1126,11 @@ int main(int argc, char *argv[])
         using namespace Step55;
 
         Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-
-        StokesProblem<2> problem(2);
+        const TestCase testcase = TestCase::test1;
+        if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+          std::cout << "running " << enum_str[static_cast<int>(testcase)]
+                    << std::endl;
+        StokesProblem<2> problem(2, testcase);
         problem.run();
     }
     catch (std::exception &exc)

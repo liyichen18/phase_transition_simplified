@@ -83,3 +83,7 @@
 /solution_04.0.vtu
 /solution_04.1.vtu
 /solution_04.pvtu
+/CMakeFiles
+/solution_07.0.vtu
+/*.vtu
+/*.pvtu
