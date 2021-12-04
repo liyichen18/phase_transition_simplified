@@ -331,6 +331,8 @@ namespace InitialConditions
               d+=pow(p(i)/axes(i),2);
             d=(sqrt(d)-1)*radius;
 
+            values(extractors.temperature.component) = 10.;
+
             break;
           }
         case TestCase::test2: {
@@ -342,6 +344,7 @@ namespace InitialConditions
         }
       double phi=-tanh(d/eps1);
       values(extractors.phi_ch.component) = phi;
+
 
   }
 
@@ -430,89 +433,6 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 } // namespace LinearSolvers
 
-
-
-template <int dim>
-class RightHandSide : public Function<dim>
-{
-public:
-    RightHandSide()
-        : Function<dim>(dim + 1)
-    {}
-
-    virtual void vector_value(const Point<dim> &p,
-                              Vector<double> &  value) const override;
-};
-
-
-template <int dim>
-void RightHandSide<dim>::vector_value(const Point<dim> &p,
-                                      Vector<double> &  values) const
-{
-    const double R_x = p[0];
-    const double R_y = p[1];
-
-    const double pi  = numbers::PI;
-    const double pi2 = pi * pi;
-    values[0] =
-        -1.0L / 2.0L * (-2 * sqrt(25.0 + 4 * pi2) + 10.0) *
-        exp(R_x * (-2 * sqrt(25.0 + 4 * pi2) + 10.0)) -
-        0.4 * pi2 * exp(R_x * (-sqrt(25.0 + 4 * pi2) + 5.0)) * cos(2 * R_y * pi) +
-        0.1 * pow(-sqrt(25.0 + 4 * pi2) + 5.0, 2) *
-        exp(R_x * (-sqrt(25.0 + 4 * pi2) + 5.0)) * cos(2 * R_y * pi);
-    values[1] = 0.2 * pi * (-sqrt(25.0 + 4 * pi2) + 5.0) *
-                exp(R_x * (-sqrt(25.0 + 4 * pi2) + 5.0)) * sin(2 * R_y * pi) -
-                0.05 * pow(-sqrt(25.0 + 4 * pi2) + 5.0, 3) *
-                exp(R_x * (-sqrt(25.0 + 4 * pi2) + 5.0)) * sin(2 * R_y * pi) /
-                pi;
-    values[2] = 0;
-}
-
-
-template <int dim>
-class ExactSolution : public Function<dim>
-{
-public:
-    ExactSolution()
-        : Function<dim>(dim + 1)
-    {}
-
-    virtual void vector_value(const Point<dim> &p,
-                              Vector<double> &  value) const override;
-};
-
-template <int dim>
-void ExactSolution<dim>::vector_value(const Point<dim> &p,
-                                      Vector<double> &  values) const
-{
-    const double R_x = p[0];
-    const double R_y = p[1];
-
-    const double pi  = numbers::PI;
-    const double pi2 = pi * pi;
-    values[0] =
-        -exp(R_x * (-sqrt(25.0 + 4 * pi2) + 5.0)) * cos(2 * R_y * pi) + 1;
-    values[1] = (1.0L / 2.0L) * (-sqrt(25.0 + 4 * pi2) + 5.0) *
-                exp(R_x * (-sqrt(25.0 + 4 * pi2) + 5.0)) * sin(2 * R_y * pi) /
-                pi;
-    values[2] =
-        -1.0L / 2.0L * exp(R_x * (-2 * sqrt(25.0 + 4 * pi2) + 10.0)) -
-        2.0 *
-        (-6538034.74494422 +
-         0.0134758939981709 * exp(4 * sqrt(25.0 + 4 * pi2))) /
-        (-80.0 * exp(3 * sqrt(25.0 + 4 * pi2)) +
-         16.0 * sqrt(25.0 + 4 * pi2) * exp(3 * sqrt(25.0 + 4 * pi2))) -
-        1634508.68623606 * exp(-3.0 * sqrt(25.0 + 4 * pi2)) /
-        (-10.0 + 2.0 * sqrt(25.0 + 4 * pi2)) +
-        (-0.00673794699908547 * exp(sqrt(25.0 + 4 * pi2)) +
-         3269017.37247211 * exp(-3 * sqrt(25.0 + 4 * pi2))) /
-        (-8 * sqrt(25.0 + 4 * pi2) + 40.0) +
-        0.00336897349954273 * exp(1.0 * sqrt(25.0 + 4 * pi2)) /
-        (-10.0 + 2.0 * sqrt(25.0 + 4 * pi2));
-}
-
-
-
 template <int dim>
 class StokesProblem
 {
@@ -527,7 +447,8 @@ private:
     void setup_initial_condition();
     void make_boundary_constraints();
     Table<2, DoFTools::Coupling> make_coupling();
-    void assemble_system();
+    void assemble_system(const bool assemble_matrix = true);
+    void newton_iteration();
     void solve();
     void refine_grid();
     void output_results(const unsigned int cycle) const;
@@ -552,12 +473,14 @@ private:
 
     IndexSet locally_relevant_dofs;
 
-    AffineConstraints<double> constraints;
+    AffineConstraints<double> constraints_newton_update;
+    AffineConstraints<double> constraints_boundary;
 
     LA::MPI::BlockSparseMatrix system_matrix;
     LA::MPI::BlockSparseMatrix preconditioner_matrix;
     LA::MPI::BlockVector       locally_relevant_solution; //u_n+1
     LA::MPI::BlockVector       old_solution; //u_n
+    LA::MPI::BlockVector       old_old_solution; //u_n-1
     LA::MPI::BlockVector       current_solution; //u_*
     LA::MPI::BlockVector       system_rhs;
     LA::MPI::BlockVector       newton_update;
@@ -578,10 +501,16 @@ private:
 
     const double density_s, density_l, density_g;
     const double inv_density_s, inv_density_l, inv_density_g;
+    double present_timestep, old_timestep;
     const double cl,cs,cg;
     const double eta_l,eta_s,eta_g;
+    const double lambda_phi, lambda_psi;
+    const double mobility_phi, mobility_psi;
+    const double latent_heat, melting_t;
+    const double thermal_conductivity;
 
-    double present_timestep;
+
+
 };
 
 
@@ -644,16 +573,21 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , extractors(ComponentIndices<dim>())
     , eps(0.01)
     , test_case(testcase)
-    , n_refinement(7)
+    , n_refinement(4)
     , density_s(2.)
     , density_l(1.)
     , density_g(0.1)
     , inv_density_s(1./density_s)
     , inv_density_l(1./density_l)
     , inv_density_g(1./density_g)
-    , present_timestep(0.001)
+    , present_timestep(0.001), old_timestep(present_timestep)
     , cl(1.), cs(1.), cg(1.)
     , eta_l(1.), eta_s(1.), eta_g(1.)
+    , lambda_phi(1.), lambda_psi(1.)
+    , mobility_phi(1e-3), mobility_psi(1e-3)
+    , latent_heat(1.)
+    , melting_t(100.)
+    , thermal_conductivity(1.)
 {
 
 
@@ -666,7 +600,7 @@ template <int dim>
 void StokesProblem<dim>::make_grid()
 {
     GridGenerator::hyper_cube(triangulation, 0., 1.);
-    triangulation.refine_global(7);
+    triangulation.refine_global(n_refinement);
 }
 
 template <int dim>
@@ -679,21 +613,26 @@ void StokesProblem<dim>::setup_initial_condition()
                            tmp_initial_sol);
 
   locally_relevant_solution = tmp_initial_sol;
+  old_solution = locally_relevant_solution;
+  old_old_solution = locally_relevant_solution;
+  current_solution = old_solution;
 }
 
 template <int dim>
 void StokesProblem<dim>::make_boundary_constraints()
 {
   //todo: problem dependent
-  constraints.reinit(locally_relevant_dofs);
+  constraints_boundary.reinit(locally_relevant_dofs);
+  constraints_newton_update.reinit(locally_relevant_dofs);
   FEValuesExtractors::Vector vel(extractors.velocities);
-  DoFTools::make_hanging_node_constraints(dof_handler, constraints);
+  DoFTools::make_hanging_node_constraints(dof_handler, constraints_boundary);
   VectorTools::interpolate_boundary_values(dof_handler,
                                            0,
                                            InitialConditions::InitialValues<dim>(eps, test_case, extractors),
-                                           constraints,
+                                           constraints_boundary,
                                            fe.component_mask(extractors.velocities));
-  constraints.close();
+  constraints_boundary.close();
+  constraints_newton_update.close();
 
 
 }
@@ -712,21 +651,27 @@ Table<2, DoFTools::Coupling> StokesProblem<dim>::make_coupling()
                && (d == component_ids.mu_phi_ch
                    || d == component_ids.phi_ch
                    || d == component_ids.psi_ac
-                   || d == component_ids.temperature))
+                   || d == component_ids.temperature
+                   || d == component_ids.pressure))
         coupling[c][d] = DoFTools::always;
       else if (c == component_ids.mu_psi_ac
                && (d == component_ids.mu_psi_ac
                    || d == component_ids.phi_ch
                    || d == component_ids.psi_ac
-                   || d == component_ids.temperature))
+                   || d == component_ids.temperature
+                   || d == component_ids.pressure))
         coupling[c][d] = DoFTools::always;
       else if (c == component_ids.phi_ch
                && (d == component_ids.phi_ch
-                   || d == component_ids.mu_phi_ch))
+                   || d == component_ids.mu_phi_ch
+                   || d == component_ids.psi_ac
+                   || (d >= component_ids.velocities && d < component_ids.velocities+dim)))
         coupling[c][d] = DoFTools::always;
       else if (c == component_ids.psi_ac
                && (d == component_ids.psi_ac
-                   || d == component_ids.mu_psi_ac))
+                   || d == component_ids.phi_ch
+                   || d == component_ids.mu_psi_ac
+                   || (d >= component_ids.velocities && d < component_ids.velocities+dim)))
         coupling[c][d] = DoFTools::always;
   //todo: navier stokes coupling
       else if ((c >= component_ids.velocities && c < component_ids.velocities + dim)
@@ -855,6 +800,7 @@ void StokesProblem<dim>::setup_system()
     old_solution.reinit(owned_partitioning,
                         relevant_partitioning,
                         mpi_communicator);
+    old_old_solution.reinit(old_solution);
     current_solution.reinit(owned_partitioning,
                         relevant_partitioning,
                         mpi_communicator);
@@ -865,17 +811,20 @@ void StokesProblem<dim>::setup_system()
 
 
 template <int dim>
-void StokesProblem<dim>::assemble_system()
+void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 {
     TimerOutput::Scope t(computing_timer, "assembly");
 
     system_matrix         = 0;
-    preconditioner_matrix = 0;
+//    preconditioner_matrix = 0;
     system_rhs            = 0;
 
     SymmetricTensor<2, dim> id_tensor;
     for (unsigned int d = 0; d < dim; ++d)
       id_tensor[d][d] = 1.;
+
+    const double         ext_c2 = theta * present_timestep / old_timestep;
+    const double         ext_c1 = ext_c2 + 1;
 
     // todo: check if it's accurate enough
     const QGauss<dim> quadrature_formula(velocity_degree + 2);
@@ -896,26 +845,47 @@ void StokesProblem<dim>::assemble_system()
     std::vector<double>         phi_n(n_q_points);
     std::vector<double>         psi_star(n_q_points);
     std::vector<double>         psi_n(n_q_points);
+    std::vector<double>         mu_phi_star(n_q_points);
+    std::vector<double>         mu_psi_star(n_q_points);
+    std::vector<double>         mu_psi_n(n_q_points);
+
     std::vector<Tensor<1,dim>>  grad_phi_star(n_q_points);
     std::vector<Tensor<1,dim>>  grad_phi_n(n_q_points);
     std::vector<Tensor<1,dim>>  grad_psi_star(n_q_points);
     std::vector<Tensor<1,dim>>  grad_psi_n(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_mu_phi_star(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_mu_phi_n(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_mu_psi_star(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_mu_psi_n(n_q_points);
 
     std::vector<Tensor<1,dim>>  vel_star(n_q_points);
     std::vector<Tensor<1,dim>>  vel_n(n_q_points);
+    std::vector<Tensor<1,dim>>  vel_n_minus_1(n_q_points);
     std::vector<Tensor<2,dim>>  grad_vel_star(n_q_points);
     std::vector<Tensor<2,dim>>  grad_vel_n(n_q_points);
+    std::vector<Tensor<2,dim>>  grad_vel_n_minus_1(n_q_points);
+
+    std::vector<double>         temperature_star(n_q_points);
+    std::vector<double>         temperature_n(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_temperature_star(n_q_points);
+    std::vector<Tensor<1,dim>>  grad_temperature_n(n_q_points);
+
+    std::vector<double>         pressure_star(n_q_points);
 
     // shape functions:
     std::vector<double> shape_phi(dofs_per_cell);
     std::vector<double> shape_psi(dofs_per_cell);
     std::vector<double> shape_phi_theta(dofs_per_cell);
     std::vector<double> shape_psi_theta(dofs_per_cell);
+    std::vector<double> shape_mu_phi(dofs_per_cell);
+    std::vector<double> shape_mu_psi(dofs_per_cell);
 
     std::vector<Tensor<1,dim>> grad_shape_phi(dofs_per_cell);
     std::vector<Tensor<1,dim>> grad_shape_phi_theta(dofs_per_cell);
     std::vector<Tensor<1,dim>> grad_shape_psi(dofs_per_cell);
     std::vector<Tensor<1,dim>> grad_shape_psi_theta(dofs_per_cell);
+    std::vector<Tensor<1,dim>> grad_shape_mu_phi(dofs_per_cell);
+    std::vector<Tensor<1,dim>> grad_shape_mu_psi(dofs_per_cell);
 
     std::vector<double> shape_inv_rho_theta(dofs_per_cell);
     std::vector<double> shape_inv_rho_partial_phi_theta(dofs_per_cell);
@@ -941,8 +911,16 @@ void StokesProblem<dim>::assemble_system()
 
     std::vector<Tensor<2,dim>>  shape_e_theta(dofs_per_cell);
 
+    std::vector<Tensor<2,dim>>  shape_gamma_theta(dofs_per_cell);
+
+    std::vector<double>         shape_temperature(dofs_per_cell);
+    std::vector<double>         shape_temperature_theta(dofs_per_cell);
+    std::vector<Tensor<1,dim>>  grad_shape_temperature(dofs_per_cell);
+    std::vector<Tensor<1,dim>>  grad_shape_temperature_theta(dofs_per_cell);
+
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
+    double mat, rhs;
     for (const auto &cell : dof_handler.active_cell_iterators())
         if (cell->is_locally_owned())
         {
@@ -953,36 +931,61 @@ void StokesProblem<dim>::assemble_system()
             fe_values.reinit(cell);
             fe_values[extractors.phi_ch].get_function_values(current_solution, phi_star);
             fe_values[extractors.phi_ch].get_function_values(old_solution, phi_n);
-            fe_values[extractors.psi_ac].get_function_values(current_solution, psi_star);
-            fe_values[extractors.psi_ac].get_function_values(old_solution, psi_n);
-
             fe_values[extractors.phi_ch].get_function_gradients(current_solution, grad_phi_star);
             fe_values[extractors.phi_ch].get_function_gradients(old_solution, grad_phi_n);
-            fe_values[extractors.psi_ch].get_function_gradients(current_solution, grad_psi_star);
-            fe_values[extractors.psi_ch].get_function_gradients(old_solution, grad_psi_n);
+
+            fe_values[extractors.psi_ac].get_function_values(current_solution, psi_star);
+            fe_values[extractors.psi_ac].get_function_values(old_solution, psi_n);
+            fe_values[extractors.psi_ac].get_function_gradients(current_solution, grad_psi_star);
+            fe_values[extractors.psi_ac].get_function_gradients(old_solution, grad_psi_n);
+
+            fe_values[extractors.mu_phi_ch].get_function_values(current_solution, mu_phi_star);
+            fe_values[extractors.mu_phi_ch].get_function_gradients(current_solution, grad_mu_phi_star);
+            fe_values[extractors.mu_phi_ch].get_function_gradients(old_solution, grad_mu_phi_n);
+
+            fe_values[extractors.mu_psi_ac].get_function_gradients(old_solution, grad_mu_psi_n);
+            fe_values[extractors.mu_psi_ac].get_function_gradients(current_solution, grad_mu_psi_star);
 
             fe_values[extractors.velocities].get_function_values(current_solution, vel_star);
             fe_values[extractors.velocities].get_function_values(old_solution, vel_n);
+            fe_values[extractors.velocities].get_function_values(old_old_solution, vel_n_minus_1);
             fe_values[extractors.velocities].get_function_gradients(current_solution, grad_vel_star);
             fe_values[extractors.velocities].get_function_gradients(old_solution, grad_vel_n);
+            fe_values[extractors.velocities].get_function_gradients(old_old_solution, grad_vel_n_minus_1);
+
+            fe_values[extractors.temperature].get_function_values(current_solution, temperature_star);
+            fe_values[extractors.temperature].get_function_values(old_solution, temperature_n);
+            fe_values[extractors.temperature].get_function_gradients(current_solution, grad_temperature_star);
+            fe_values[extractors.temperature].get_function_gradients(old_solution, grad_temperature_n);
+
+            fe_values[extractors.pressure].get_function_values(current_solution, pressure_star);
 
             for (unsigned int q = 0; q < n_q_points; ++q)
             {
               // ts: theta star
-              const double c1 = 1.-theta;
-              const double phi_ts = theta * phi_star[q] + c1 * phi_n[q];
-              const double psi_ts = theta * psi_star[q] + c1 * psi_n[q];
-              const Tensor<1,dim> grad_phi_ts = theta * grad_phi_star[q] + c1 * grad_phi_n[q];
-              const Tensor<1,dim> grad_psi_ts = theta * grad_psi_star[q] + c1 * grad_psi_n[q];
-              const Tensor<1,dim> vel_ts = theta * vel_star[q] + c1 * vel_n[q];
-              const Tensor<2,dim> grad_vel_ts = theta * grad_vel_star[q] + c1 * grad_vel_n[q];
-              const double div_vel_ts = trace(grad_vel_ts);
+              const double c1        = 1.-theta;
+              const double phi_ts    = theta * phi_star[q] + c1 * phi_n[q];
+              const double psi_ts    = theta * psi_star[q] + c1 * psi_n[q];
+              const double mu_psi_ts = theta * mu_psi_star[q] + c1 * mu_psi_n[q];
+
+              const Tensor<1,dim> grad_phi_ts    = theta * grad_phi_star[q] + c1 * grad_phi_n[q];
+              const Tensor<1,dim> grad_psi_ts    = theta * grad_psi_star[q] + c1 * grad_psi_n[q];
+              const Tensor<1,dim> grad_mu_phi_ts = theta * grad_mu_phi_star[q] + c1 * grad_mu_phi_n[q];
+              const Tensor<1,dim> grad_mu_psi_ts = theta * grad_mu_psi_star[q] + c1 * grad_mu_psi_n[q];
+              const Tensor<1,dim> vel_ts         = theta * vel_star[q] + c1 * vel_n[q];
+              const Tensor<2,dim> grad_vel_ts    = theta * grad_vel_star[q] + c1 * grad_vel_n[q];
+              const double div_vel_ts            = trace(grad_vel_ts);
+              const Tensor<1, dim> vel_bar       = ext_c1 * vel_n[q] - ext_c2 * vel_n_minus_1[q];
+              const double div_vel_bar           = ext_c1 * trace(grad_vel_n[q]) - ext_c2 * trace(grad_vel_n_minus_1[q]);
+              const double temperature_ts        = theta * temperature_star[q] + c1 * temperature_n[q];
+
+              const Tensor<1,dim> grad_temperature_ts = theta * grad_temperature_star[q] + c1 * grad_temperature_n[q];
 
               const double inv_rho_ts = InlineFunctions::f(phi_ts,
-                                                                   psi_ts,
-                                                                   inv_density_l,
-                                                                   inv_density_s,
-                                                                   inv_density_g);
+                                                           psi_ts,
+                                                           inv_density_l,
+                                                           inv_density_s,
+                                                           inv_density_g);
               const double rho_ts = 1./ inv_rho_ts;
               const double rho_ts_square = rho_ts * rho_ts;
 
@@ -1018,7 +1021,15 @@ void StokesProblem<dim>::assemble_system()
               const double rho_partial_psi_ts = -rho_ts_square * inv_rho_partial_psi_ts;
 
               const double material_derivative_ts = ((phi_star[q] - phi_n[q])/present_timestep + vel_ts * grad_phi_ts);
-              const double h_ts = rho_ts * material_derivative_ts;
+
+//              const double inv_rho_star = InlineFunctions::f(phi_star[q],
+//                                                             psi_star[q],
+//                                                             inv_density_l,
+//                                                             inv_density_s,
+//                                                             inv_density_g);
+//              const double rho_star = 1./inv_rho_star;
+//              const double h_star = rho_star * ((phi_star[q] - phi_n[q])/present_timestep + vel_star[q] * grad_phi_star[q]);
+              const double h_ts   = rho_ts * material_derivative_ts;
 
               const Tensor<1,dim> grad_inv_rho_ts = inv_rho_partial_phi_ts * grad_phi_ts + inv_rho_partial_psi_ts * grad_psi_ts;
 
@@ -1052,23 +1063,63 @@ void StokesProblem<dim>::assemble_system()
               // E_theta_star
               const Tensor<2,dim> e_ts = grad_vel_ts + transpose(grad_vel_ts) -  2./3. * div_vel_ts * id_tensor;
 
+              const double r_phi_ts = InlineFunctions::r(phi_ts);
+              const double r_psi_ts = InlineFunctions::r(psi_ts);
+              const double r_prime_phi_ts = InlineFunctions::r_prime(phi_ts);
+              const double r_prime_psi_ts = InlineFunctions::r_prime(psi_ts);
+              const double r_prime_prime_phi_ts = InlineFunctions::r_prime_prime(phi_ts);
+              const double r_prime_prime_psi_ts = InlineFunctions::r_prime_prime(psi_ts);
+              const double w_psi_ts = InlineFunctions::w(psi_ts, eps);
+              const double w_prime_psi_ts = InlineFunctions::w_prime(psi_ts, eps);
+              const double w_prime_phi_ts = InlineFunctions::w_prime(phi_ts, eps);
+              const double w_prime_prime_phi_ts = InlineFunctions::w_prime_prime(phi_ts, eps);
+              const double w_prime_prime_psi_ts = InlineFunctions::w_prime_prime(psi_ts, eps);
+
+              const Tensor<2,dim> gamma_ts = lambda_phi * outer_product(grad_phi_ts, grad_phi_ts)
+                  + r_phi_ts * lambda_psi * outer_product(grad_psi_ts, grad_psi_ts);
+
+              const Tensor<1,dim> D_vel_Dt_ts = (vel_star[q] - vel_n[q])/present_timestep + vel_bar * grad_vel_ts
+                  + 0.5 * div_vel_bar * vel_ts;
+
+              const double D_temperature_Dt_ts = (temperature_star[q] - temperature_n[q])/present_timestep + vel_ts * grad_temperature_ts;
+
+              const double log_t_ts_tm = std::log(temperature_ts/melting_t);
+              // TM(1-T_ts/TM) + T_ts*log(T_ts/TM), used in  w3 and w5
+              const double w35_reuse_term1 = melting_t * (1. - temperature_ts/melting_t) + temperature_ts * log_t_ts_tm;
+              // w(phi_ts) + 0.5 |grad_psi_ts|^2
+              const double w3_reuse_term2 = w_psi_ts + 0.5 * (grad_psi_ts * grad_psi_ts);
+
+              // (psi_ts - psi_n)/dt + vel_ts * grad_psi_ts
+              const double D_psi_D_t_ts = (psi_ts - psi_n[q])/present_timestep + vel_ts * grad_psi_ts;
+
               for (unsigned int k = 0; k < dofs_per_cell; ++k)
                 {
                   shape_phi[k]       = fe_values[extractors.phi_ch].value(k, q);
-                  shape_psi[k]       = fe_values[extractors.psi_ch].value(k, q);
+                  shape_psi[k]       = fe_values[extractors.psi_ac].value(k, q);
                   shape_phi_theta[k] = theta * shape_phi[k];
                   shape_psi_theta[k] = theta * shape_psi[k];
 
                   grad_shape_phi[k]       = fe_values[extractors.phi_ch].gradient(k, q);
                   grad_shape_phi_theta[k] = theta * grad_shape_phi[k];
-                  grad_shape_psi[k]       = fe_values[extractors.psi_ch].gradient(k, q);
+                  grad_shape_psi[k]       = fe_values[extractors.psi_ac].gradient(k, q);
                   grad_shape_psi_theta[k] = theta * grad_shape_psi[k];
+
+                  shape_mu_phi[k]            = fe_values[extractors.mu_phi_ch].value(k, q);
+                  shape_mu_psi[k]            = fe_values[extractors.mu_psi_ac].value(k, q);
+
+                  grad_shape_mu_phi[k]       = fe_values[extractors.mu_phi_ch].gradient(k, q);
+                  grad_shape_mu_psi[k]       = fe_values[extractors.mu_psi_ac].gradient(k, q);
 
                   shape_vel[k]       = fe_values[extractors.velocities].value(k, q);
                   shape_vel_theta[k] = theta * shape_vel[k];
                   grad_shape_vel[k] = fe_values[extractors.velocities].gradient(k, q);
                   shape_div_vel[k]  = fe_values[extractors.velocities].divergence(k, q);
                   shape_pressure[k] = fe_values[extractors.pressure].value(k, q);
+
+                  shape_temperature[k]             = fe_values[extractors.temperature].value(k, q);
+                  shape_temperature_theta[k]       = theta * shape_temperature[k];
+                  grad_shape_temperature[k]        = fe_values[extractors.temperature].gradient(k, q);
+                  grad_shape_temperature_theta[k]  = theta * grad_shape_temperature[k];
 
                   shape_inv_rho_theta[k] = inv_rho_partial_phi_ts * shape_phi_theta[k]
                       + inv_rho_partial_psi_ts * shape_psi_theta[k];
@@ -1099,35 +1150,186 @@ void StokesProblem<dim>::assemble_system()
                   shape_eta_theta[k] = eta_partial_phi_ts * shape_phi_theta[k]
                       + eta_partial_psi_ts * shape_psi_theta[k];
 
-                  shape_e_theta = theta * (grad_shape_vel[k] + transpose(grad_shape_vel[k]) + 2./3. * shape_div_vel[k] * id_tensor);
+                  shape_e_theta[k] = theta * (grad_shape_vel[k] + transpose(grad_shape_vel[k])
+                                              + 2./3. * shape_div_vel[k] * id_tensor);
 
-
+                  const Tensor<2,dim> grad_phi_ts_grad_shape_phi_theta = outer_product(grad_phi_ts, grad_shape_phi_theta[k]);
+                  const Tensor<2,dim> grad_psi_ts_grad_shape_psi_theta = outer_product(grad_psi_ts, grad_shape_psi_theta[k]);
+                  shape_gamma_theta[k] = lambda_phi * (grad_phi_ts_grad_shape_phi_theta
+                                                       + transpose(grad_phi_ts_grad_shape_phi_theta))
+                      + lambda_psi * (r_prime_phi_ts * shape_phi_theta[k] * outer_product(grad_psi_ts, grad_psi_ts)
+                                      + r_phi_ts * (grad_psi_ts_grad_shape_psi_theta + transpose(grad_psi_ts_grad_shape_psi_theta)));
                 }
 
                 for (unsigned int i = 0; i < dofs_per_cell; ++i)
                 {
+                  if(assemble_matrix)
                     for (unsigned int j = 0; j < dofs_per_cell; ++j)
                     {
-                        double mat = 0;
-                        double rhs = 0;
+                      // w1,2
+                      mat = shape_h_ts[j] * shape_phi[i] + mobility_phi * grad_shape_mu_phi[j] * grad_shape_phi[i];
 
-                        // w1, 2
-//                        mat +=
-//                        rhs +=
+                      // w3
+                      //  term i
+                      mat += shape_mu_phi[j] * shape_mu_phi[i];
+                      //  term ii
+                      mat += (-((r_prime_psi_ts * r_prime_phi_ts
+                                 + r_psi_ts * r_prime_prime_phi_ts ) * shape_phi_theta[j]
+                                * latent_heat * (1. - temperature_ts/melting_t))
+                              + r_psi_ts * r_prime_phi_ts * latent_heat/melting_t * shape_temperature_theta[j]
+                              + (shape_c_partial_phi_theta[j] * w35_reuse_term1
+                                 + c_partial_phi_ts * shape_temperature_theta[j] * log_t_ts_tm)) * shape_mu_phi[i];
+                      //  term iii
+                      mat += (-(lambda_phi * w_prime_prime_phi_ts
+                                + lambda_psi * r_prime_prime_phi_ts * w3_reuse_term2) * shape_phi_theta[j]
+                              + lambda_psi * r_prime_phi_ts * (w_prime_psi_ts + shape_phi_theta[j] + grad_phi_ts * grad_shape_phi_theta[j])
+                              - (shape_pressure[j] * inv_rho_partial_phi_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j])) * shape_mu_phi[i];
+                      //  term iv
+                      mat += lambda_phi * (grad_shape_phi_theta[j] * grad_shape_mu_phi[i])
+                          +  lambda_phi * shape_rho_theta[j] * (grad_phi_ts * grad_inv_rho_ts) * shape_mu_phi[i]
+                          +  lambda_phi * rho_ts * (grad_shape_phi_theta[j] * grad_inv_rho_ts) * shape_mu_phi[i]
+                          +  lambda_phi * rho_ts * (grad_phi_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi[i];
+                      // todo: add face integral term v
 
-                        cell_matrix(i, j) +=
-                            (viscosity *
-                             scalar_product(grad_phi_u[i], grad_phi_u[j]) -
-                             div_phi_u[i] * phi_p[j] - phi_p[i] * div_phi_u[j]) *
-                            fe_values.JxW(q);
+                      // w4
+                      mat += (rho_ts * (shape_psi[j]/present_timestep + vel_ts * grad_shape_psi_theta[j]
+                                        + shape_vel_theta[j] * grad_psi_ts)
+                              + shape_rho_theta[j] * D_psi_D_t_ts + mobility_psi * shape_mu_psi[j]) * shape_mu_psi[i];
 
-                        cell_matrix2(i, j) += 1.0 / viscosity * phi_p[i] *
-                                              phi_p[j] * fe_values.JxW(q);
+                      // w5
+                      //  term i
+                      mat += shape_mu_psi[j] * shape_mu_psi[i];
+                      //  term ii
+                      mat += ( -( (r_prime_prime_psi_ts * r_psi_ts * shape_psi_theta[j]
+                                   + r_prime_psi_ts * r_prime_phi_ts * shape_phi_theta[j])
+                                  * latent_heat * (1. - temperature_ts/melting_t))
+                               + r_prime_psi_ts * r_phi_ts * latent_heat/melting_t * shape_temperature_theta[j]
+                               + (shape_c_partial_psi_theta[j] * w35_reuse_term1
+                                  + c_partial_psi_ts * shape_temperature_theta[j] * log_t_ts_tm)) * shape_mu_psi[i];
+                      //  term iii
+                      mat += (-(r_prime_phi_ts * shape_phi_theta[j] * lambda_psi * w_prime_psi_ts
+                               + r_phi_ts * lambda_psi * w_prime_prime_psi_ts * shape_psi_theta[j])
+                          -  (shape_pressure[j] * inv_rho_partial_psi_ts + pressure_star[q] * shape_inv_rho_partial_psi_theta[j])) * shape_mu_psi[i];
+                      //  term iv
+                      mat += - (r_prime_phi_ts * shape_phi_theta[j] * lambda_psi * grad_psi_ts
+                               + r_phi_ts * lambda_psi * grad_shape_psi_theta[j]) * grad_shape_mu_psi[i]
+                          - lambda_psi * shape_rho_theta[j] * r_phi_ts * (grad_psi_ts * grad_inv_rho_ts) * shape_mu_psi[i]
+                          - lambda_psi * rho_ts * r_prime_phi_ts * shape_phi_theta[j] * (grad_psi_ts * grad_inv_rho_ts) * shape_mu_psi[i]
+                          - lambda_psi * rho_ts * r_phi_ts * (grad_shape_psi_theta[j] * grad_inv_rho_ts) * shape_mu_psi[i]
+                          - lambda_psi * rho_ts * r_phi_ts * (grad_psi_ts * grad_shape_inv_rho_theta[j]) * shape_mu_psi[i];
+
+                      // w6
+                      mat += (shape_rho_theta[j] * D_vel_Dt_ts
+                              + rho_ts * (shape_vel[j]/present_timestep + vel_bar * grad_shape_vel[j] * theta
+                                          + 0.5 * div_vel_bar * shape_vel_theta[j])) * shape_vel[i]
+                          -  shape_pressure[j] * shape_div_vel[i]
+                          +  scalar_product(shape_eta_theta[j] * e_ts + eta_ts * shape_e_theta[j], grad_shape_vel[i])
+                          -  scalar_product(shape_rho_theta[j] * gamma_ts + rho_ts * shape_gamma_theta[j], grad_shape_vel[i]);
+
+                      // w7
+                      mat += (- theta * shape_div_vel[j]
+                              + (shape_inv_rho_partial_phi_theta[j] * h_ts + inv_rho_partial_phi_ts * shape_h_ts[j])
+                              - (shape_inv_rho_partial_psi_theta[j] * mobility_psi * mu_psi_star[q]
+                                  + inv_rho_partial_psi_ts * mobility_psi * shape_mu_psi[j])) * shape_pressure[i];
+
+                      // w8
+                      //  term i
+                      mat += (shape_rho_theta[j] * c_ts * D_temperature_Dt_ts + rho_ts * shape_c_theta[j] * D_temperature_Dt_ts
+                              +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
+                                                  + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
+                      //  term ii
+                      mat +=(-2. * mobility_phi * (grad_mu_phi_ts * grad_shape_mu_phi[j] * theta
+                                                   + 2. * mobility_psi * mu_psi_ts * shape_mu_psi[j])
+                             -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts)
+                             -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts)
+                             - eta_ts * scalar_product(e_ts, grad_shape_vel[j] * theta)) * shape_temperature[i];
+                      //  term iii
+                      mat += thermal_conductivity * grad_shape_temperature_theta[j] * grad_shape_temperature[i];
+                      //  term iv
+                      mat += latent_heat/melting_t * (r_prime_psi_ts * shape_psi_theta[j] * r_prime_phi_ts * h_ts
+                                                      + r_psi_ts * r_prime_prime_phi_ts * shape_phi_theta[j] * h_ts
+                                                      + r_psi_ts * r_prime_phi_ts * shape_h_ts[j]
+                                                      - r_prime_prime_psi_ts * shape_psi_theta[j] * r_phi_ts * mobility_psi * mu_psi_ts
+                                                      - r_prime_psi_ts * r_prime_phi_ts * shape_phi_theta[j] * mobility_psi * mu_psi_ts
+                                                      - r_prime_psi_ts * r_phi_ts * mobility_psi * shape_mu_psi[j])
+                          * temperature_ts * shape_temperature[i]
+                          + latent_heat/melting_t * (r_psi_ts * r_prime_phi_ts * h_ts
+                                                     - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_ts)
+                          * shape_temperature_theta[j] * shape_temperature[i];
+                      //  term v
+                      mat += (shape_c_partial_phi_theta[j] * h_ts + c_partial_phi_ts * shape_h_ts[j]
+                              - shape_c_partial_psi_theta[j] * mobility_psi * mu_psi_star[q]
+                              - c_partial_psi_ts * mobility_psi * shape_mu_psi[j])
+                          *  temperature_ts * log_t_ts_tm * shape_temperature[i]
+                          +  (c_partial_phi_ts * h_ts - c_partial_psi_ts * mobility_psi * mu_psi_star[q])
+                          *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
+
+
+
+                      cell_matrix(i,j) += mat * fe_values.JxW(q);
+
                     }
 
-                    const unsigned int component_i =
-                        fe.system_to_component_index(i).first;
-                    cell_rhs(i) += fe_values.shape_value(i, q) * fe_values.JxW(q);
+                    // w1,2
+                    rhs = - h_ts * shape_phi[i] - mobility_phi * (grad_mu_phi_star[q] * grad_shape_phi[i]);
+
+                    // w3
+                    //  term i
+                    rhs += - mu_phi_star[q] * shape_mu_phi[i];
+                    //  term ii
+                    rhs += (r_psi_ts * r_prime_phi_ts * latent_heat * (1. - temperature_ts/melting_t)
+                            - c_partial_phi_ts * w35_reuse_term1) * shape_mu_phi[i];
+                    //  term iii
+                    rhs += ((lambda_phi * w_prime_phi_ts + lambda_psi * r_prime_phi_ts) * w3_reuse_term2
+                            + pressure_star[q] * inv_rho_partial_phi_ts) * shape_mu_phi[i];
+                    //  term iv
+                    rhs += lambda_phi * (grad_phi_ts * grad_shape_mu_phi[i])
+                        +  lambda_phi * rho_ts * (grad_phi_ts * grad_inv_rho_ts) * shape_mu_phi[i];
+
+                    // w4
+                    rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_ts) * shape_mu_psi[i];
+
+                    // w5
+                    //  term i
+                    rhs += - mu_psi_star[q] * shape_mu_psi[i];
+                    //  term ii
+                    rhs += (r_prime_psi_ts * r_phi_ts * latent_heat * (1. - temperature_ts/melting_t)
+                            - c_partial_psi_ts * w35_reuse_term1) * shape_mu_psi[i];
+                    //  term iii
+                    rhs += (r_phi_ts * lambda_psi * w_prime_psi_ts + pressure_star[q] * inv_rho_partial_psi_ts) * shape_mu_psi[i];
+                    //  term iv
+                    rhs += lambda_psi * r_phi_ts * (grad_psi_ts * grad_shape_mu_psi[i])
+                        +  lambda_psi * rho_ts * r_phi_ts * (grad_psi_ts * grad_inv_rho_ts) * shape_mu_psi[i];
+
+                    // w6
+                    rhs += - rho_ts * D_vel_Dt_ts * shape_vel[i]
+                        +    pressure_star[q] * shape_div_vel[i]
+                        -    eta_ts * scalar_product(e_ts, grad_shape_vel[i])
+                        +    rho_ts * scalar_product(gamma_ts, grad_shape_vel[i]);
+
+                    // w7
+                    rhs += (div_vel_ts - inv_rho_partial_phi_ts * h_ts
+                        +  inv_rho_partial_psi_ts * mobility_psi * mu_psi_ts) * shape_pressure[i];
+
+                    // w8
+                    //  term i
+                    rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
+                    //  term ii
+                    rhs += (mobility_phi * (grad_mu_phi_ts * grad_mu_phi_ts)
+                            + mobility_psi * (grad_mu_psi_ts * grad_mu_psi_ts)
+                            + eta_ts * scalar_product(e_ts, grad_vel_ts)) * shape_temperature[i];
+                    //  term iii
+                    rhs += - thermal_conductivity * grad_temperature_ts * grad_shape_temperature[i];
+                    //  term iv
+                    rhs += - (latent_heat * r_psi_ts * r_prime_psi_ts * h_ts
+                              - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_ts)
+                        * temperature_ts/melting_t * shape_temperature[i];
+                    // term v
+                    rhs += - (c_partial_phi_ts * h_ts - c_partial_psi_ts * mobility_psi * mu_psi_star[q])
+                        * temperature_ts * log_t_ts_tm * shape_temperature[i];
+
+
+                    cell_rhs(i) += rhs * fe_values.JxW(q);
                 }
             }
 
@@ -1138,18 +1340,18 @@ void StokesProblem<dim>::assemble_system()
                                                    local_dof_indices,
                                                    system_matrix,
                                                    system_rhs);
-
-            constraints.distribute_local_to_global(cell_matrix2,
-                                                   local_dof_indices,
-                                                   preconditioner_matrix);
         }
 
     system_matrix.compress(VectorOperation::add);
-    preconditioner_matrix.compress(VectorOperation::add);
+//    preconditioner_matrix.compress(VectorOperation::add);
     system_rhs.compress(VectorOperation::add);
 }
 
+template <int dim>
+void StokesProblem<dim>::newton_iteration()
+{
 
+}
 
 template <int dim>
 void StokesProblem<dim>::solve()
@@ -1299,7 +1501,7 @@ void StokesProblem<dim>::run()
         setup_system();
         setup_initial_condition();
 
-//        assemble_system();
+        assemble_system();
 //        solve();
 
         if (Utilities::MPI::n_mpi_processes(mpi_communicator) <= 32)
