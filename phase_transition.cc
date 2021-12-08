@@ -505,7 +505,7 @@ private:
 
     const unsigned n_refinement;
 
-    const double theta = 1.;
+    double theta = 1.;
 
     const double density_s, density_l, density_g;
     const double inv_density_s, inv_density_l, inv_density_g;
@@ -1596,36 +1596,53 @@ void StokesProblem<dim>::run()
 #else
     pcout << "Running using Trilinos." << std::endl;
 #endif
+    pcout << "n refinement " << n_refinement << ':' << std::endl;
 
+    unsigned int step_number = 0;
+    double runtime           = 0.;
+    present_timestep = 0.01;
 
-    {
-        pcout << "n refinement " << n_refinement << ':' << std::endl;
+    const unsigned int max_step_number = 1;
+    const unsigned int output_interval = 10;
 
-
-        make_grid();
+    make_grid();
 
 #ifdef USE_DIRECT_SOLVER
-        setup_system();
+    setup_system();
 #else
-        setup_block_system();
+    setup_block_system();
 #endif
-        setup_initial_condition();
+
+    setup_initial_condition();
+
+    while (step_number < max_step_number)
+      {
+        old_timestep     = present_timestep;
+
+        step_number ++;
+        runtime += present_timestep;
+        pcout << "###starting step " << step_number << "  dt=" << present_timestep
+              << "  time=" << runtime << std::endl;
+
+        old_old_solution = old_solution;          // n-1
+        old_solution = locally_relevant_solution; // n
+        current_solution = locally_relevant_solution; // u^*, newton initial guess
 
         // change max newton iteration
         newton_iteration();
-//        solve();
+        //        solve();
 
-        if (Utilities::MPI::n_mpi_processes(mpi_communicator) <= 32)
-        {
+        if (step_number % output_interval == 0)
+          {
             TimerOutput::Scope t(computing_timer, "output");
-            output_results(n_refinement);
-        }
+            output_results(step_number);
+          }
 
-        computing_timer.print_summary();
-        computing_timer.reset();
+      }
+    computing_timer.print_summary();
+    computing_timer.reset();
 
-        pcout << std::endl;
-    }
+    pcout << std::endl;
 }
 } // namespace Step55
 
