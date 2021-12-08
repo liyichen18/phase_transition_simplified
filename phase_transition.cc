@@ -24,14 +24,14 @@
 
 #include <deal.II/lac/generic_linear_algebra.h>
 
-/* #define FORCE_USE_OF_TRILINOS */
-
+//#define FORCE_USE_OF_TRILINOS
+#define USE_DIRECT_SOLVER
 namespace LA
 {
 #if defined(DEAL_II_WITH_PETSC) && !defined(DEAL_II_PETSC_WITH_COMPLEX) && \
   !(defined(DEAL_II_WITH_TRILINOS) && defined(FORCE_USE_OF_TRILINOS))
 using namespace dealii::LinearAlgebraPETSc;
-//#  define USE_PETSC_LA
+#  define USE_PETSC_LA
 #elif defined(DEAL_II_WITH_TRILINOS)
 using namespace dealii::LinearAlgebraTrilinos;
 #else
@@ -442,8 +442,16 @@ public:
     void run();
 
 private:
+#ifdef USE_DIRECT_SOLVER
+  using VectorType = LA::MPI::Vector;
+  using MatrixType = LA::MPI::SparseMatrix;
+#else
+    using VectorType = LA::MPI::BlockVector;
+    using MatrixType = LA::MPI::BlockSparseMatrix;
+#endif
     void make_grid();
     void setup_system();
+    void setup_block_system();
     void setup_initial_condition();
     void make_boundary_constraints();
     Table<2, DoFTools::Coupling> make_coupling();
@@ -468,22 +476,22 @@ private:
     parallel::distributed::Triangulation<dim> triangulation;
     DoFHandler<dim>                           dof_handler;
 
-    std::vector<IndexSet> owned_partitioning;
-    std::vector<IndexSet> relevant_partitioning;
+    std::vector<IndexSet> block_owned_partitioning;
+    std::vector<IndexSet> block_relevant_partitioning;
 
     IndexSet locally_relevant_dofs;
 
     AffineConstraints<double> constraints_newton_update;
     AffineConstraints<double> constraints_boundary;
 
-    LA::MPI::BlockSparseMatrix system_matrix;
-    LA::MPI::BlockSparseMatrix preconditioner_matrix;
-    LA::MPI::BlockVector       locally_relevant_solution; //u_n+1
-    LA::MPI::BlockVector       old_solution; //u_n
-    LA::MPI::BlockVector       old_old_solution; //u_n-1
-    LA::MPI::BlockVector       current_solution; //u_*
-    LA::MPI::BlockVector       system_rhs;
-    LA::MPI::BlockVector       newton_update;
+    MatrixType system_matrix;
+    MatrixType preconditioner_matrix;
+    VectorType       locally_relevant_solution; //u_n+1
+    VectorType       old_solution; //u_n
+    VectorType       old_old_solution; //u_n-1
+    VectorType       current_solution; //u_*
+    VectorType       system_rhs;
+    VectorType       newton_update;
 
     ConditionalOStream pcout;
     TimerOutput        computing_timer;
@@ -508,6 +516,10 @@ private:
     const double mobility_phi, mobility_psi;
     const double latent_heat, melting_t;
     const double thermal_conductivity;
+    const MappingQ<dim> mapping;
+
+    double hmin;
+
 
 
 
@@ -588,6 +600,7 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , latent_heat(1.)
     , melting_t(100.)
     , thermal_conductivity(1.)
+    , mapping(1)
 {
 
 
@@ -601,13 +614,19 @@ void StokesProblem<dim>::make_grid()
 {
     GridGenerator::hyper_cube(triangulation, 0., 1.);
     triangulation.refine_global(n_refinement);
+
+    hmin = GridTools::minimal_cell_diameter(triangulation, mapping)/std::sqrt(dim*1.);
 }
 
 template <int dim>
 void StokesProblem<dim>::setup_initial_condition()
 {
-  LA::MPI::BlockVector tmp_initial_sol;
-  tmp_initial_sol.reinit(owned_partitioning, mpi_communicator);
+  VectorType tmp_initial_sol;
+#ifdef USE_DIRECT_SOLVER
+  tmp_initial_sol.reinit(dof_handler.locally_owned_dofs(), mpi_communicator);
+#else
+  tmp_initial_sol.reinit(block_owned_partitioning, mpi_communicator);
+#endif
   VectorTools::interpolate(dof_handler,
                            InitialConditions::InitialValues<dim>(eps, test_case, extractors),
                            tmp_initial_sol);
@@ -712,8 +731,9 @@ Table<2, DoFTools::Coupling> StokesProblem<dim>::make_coupling()
 }
 
 template <int dim>
-void StokesProblem<dim>::setup_system()
+void StokesProblem<dim>::setup_block_system()
 {
+#ifndef USE_DIRECT_SOLVER
     TimerOutput::Scope t(computing_timer, "setup");
 
     dof_handler.distribute_dofs(fe);
@@ -744,29 +764,29 @@ void StokesProblem<dim>::setup_system()
       pcout<< i <<"  "  ;
     pcout << ")"<< std::endl;
 
-    owned_partitioning.resize(n_blocks);
+    block_owned_partitioning.resize(n_blocks);
 
     unsigned int block_starting_id = 0;
     for(unsigned int i=0; i<n_blocks; ++i)
       {
-        owned_partitioning[i] =
+        block_owned_partitioning[i] =
             dof_handler.locally_owned_dofs().get_view(block_starting_id,
                                                       block_starting_id + dofs_per_block[i]);
         block_starting_id += dofs_per_block[i];
-        pcout<<" owned partitioning size ( "<<i<<" ): "<<owned_partitioning[i].size()<<std::endl;
+        pcout<<" owned partitioning size ( "<<i<<" ): "<<block_owned_partitioning[i].size()<<std::endl;
       }
 
     locally_relevant_dofs.clear();
     DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
-    relevant_partitioning.resize(n_blocks);
+    block_relevant_partitioning.resize(n_blocks);
 
     block_starting_id = 0;
     for(unsigned int i=0; i<n_blocks; ++i)
       {
-        relevant_partitioning[i] = locally_relevant_dofs.get_view(block_starting_id,
+        block_relevant_partitioning[i] = locally_relevant_dofs.get_view(block_starting_id,
                                                                   block_starting_id + dofs_per_block[i]);
         block_starting_id += dofs_per_block[i];
-//        pcout<<" relevant partitioning size ( "<<i<<" ): "<<relevant_partitioning[i].size()<<std::endl;
+//        pcout<<" relevant partitioning size ( "<<i<<" ): "<<block_relevant_partitioning[i].size()<<std::endl;
       }
 
     make_boundary_constraints();
@@ -775,13 +795,12 @@ void StokesProblem<dim>::setup_system()
     {
         system_matrix.clear();
 
-        //todo: make coupling
         const Table<2, DoFTools::Coupling> coupling = make_coupling();
 
         BlockDynamicSparsityPattern dsp(dofs_per_block, dofs_per_block);
 
         DoFTools::make_sparsity_pattern(
-            dof_handler, coupling, dsp, constraints, false);
+            dof_handler, coupling, dsp, constraints_newton_update, false);
 
         SparsityTools::distribute_sparsity_pattern(
             dsp,
@@ -789,25 +808,74 @@ void StokesProblem<dim>::setup_system()
             mpi_communicator,
             locally_relevant_dofs);
 
-//        std::cout<<" rows size: "<<owned_partitioning.size()
+//        std::cout<<" rows size: "<<block_owned_partitioning.size()
 //                << " n block rows: "<<dsp.n_block_rows()<<std::endl;
-        system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
+        system_matrix.reinit(block_owned_partitioning, dsp, mpi_communicator);
     }
 
-    locally_relevant_solution.reinit(owned_partitioning,
-                                     relevant_partitioning,
+    locally_relevant_solution.reinit(block_owned_partitioning,
+                                     block_relevant_partitioning,
                                      mpi_communicator);
-    old_solution.reinit(owned_partitioning,
-                        relevant_partitioning,
+    old_solution.reinit(block_owned_partitioning,
+                        block_relevant_partitioning,
                         mpi_communicator);
     old_old_solution.reinit(old_solution);
-    current_solution.reinit(owned_partitioning,
-                        relevant_partitioning,
+    current_solution.reinit(block_owned_partitioning,
+                        block_relevant_partitioning,
                         mpi_communicator);
-    system_rhs.reinit(owned_partitioning, mpi_communicator);
-    newton_update.reinit(owned_partitioning, mpi_communicator);
+    system_rhs.reinit(block_owned_partitioning, mpi_communicator);
+    newton_update.reinit(block_owned_partitioning, mpi_communicator);
+#endif
 }
 
+
+template <int dim>
+void StokesProblem<dim>::setup_system()
+{
+    TimerOutput::Scope t(computing_timer, "setup");
+
+    dof_handler.distribute_dofs(fe);
+    pcout<<" dofs: "<<dof_handler.n_dofs()<<std::endl;
+
+    locally_relevant_dofs.clear();
+    DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+
+    IndexSet locally_owned_dofs = dof_handler.locally_owned_dofs();
+
+    make_boundary_constraints();
+
+
+    {
+        system_matrix.clear();
+
+        const Table<2, DoFTools::Coupling> coupling = make_coupling();
+
+        DynamicSparsityPattern dsp(dof_handler.n_dofs(), dof_handler.n_dofs());
+
+        DoFTools::make_sparsity_pattern(
+            dof_handler, coupling, dsp, constraints_newton_update, false);
+
+        SparsityTools::distribute_sparsity_pattern(
+            dsp,
+            locally_owned_dofs,
+            mpi_communicator,
+            locally_relevant_dofs);
+
+//        std::cout<<" rows size: "<<block_owned_partitioning.size()
+//                << " n block rows: "<<dsp.n_block_rows()<<std::endl;
+        system_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp, mpi_communicator);
+    }
+
+    locally_relevant_solution.reinit(locally_owned_dofs,
+                                     locally_relevant_dofs,
+                                     mpi_communicator);
+    old_solution.reinit(locally_relevant_solution);
+    old_old_solution.reinit(old_solution);
+    current_solution.reinit(locally_relevant_solution);
+
+    system_rhs.reinit(locally_owned_dofs, mpi_communicator);
+    newton_update.reinit(system_rhs);
+}
 
 
 template <int dim>
@@ -1161,186 +1229,188 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                       + r_phi_ts * (grad_psi_ts_grad_shape_psi_theta + transpose(grad_psi_ts_grad_shape_psi_theta)));
                 }
 
-                for (unsigned int i = 0; i < dofs_per_cell; ++i)
+              for (unsigned int i = 0; i < dofs_per_cell; ++i)
                 {
                   if(assemble_matrix)
-                    for (unsigned int j = 0; j < dofs_per_cell; ++j)
                     {
-                      // w1,2
-                      mat = shape_h_ts[j] * shape_phi[i] + mobility_phi * grad_shape_mu_phi[j] * grad_shape_phi[i];
+                      for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                        {
+                          // w1,2
+                          mat = shape_h_ts[j] * shape_phi[i] + mobility_phi * grad_shape_mu_phi[j] * grad_shape_phi[i];
 
-                      // w3
-                      //  term i
-                      mat += shape_mu_phi[j] * shape_mu_phi[i];
-                      //  term ii
-                      mat += (-((r_prime_psi_ts * r_prime_phi_ts
-                                 + r_psi_ts * r_prime_prime_phi_ts ) * shape_phi_theta[j]
-                                * latent_heat * (1. - temperature_ts/melting_t))
-                              + r_psi_ts * r_prime_phi_ts * latent_heat/melting_t * shape_temperature_theta[j]
-                              + (shape_c_partial_phi_theta[j] * w35_reuse_term1
-                                 + c_partial_phi_ts * shape_temperature_theta[j] * log_t_ts_tm)) * shape_mu_phi[i];
-                      //  term iii
-                      mat += (-(lambda_phi * w_prime_prime_phi_ts
-                                + lambda_psi * r_prime_prime_phi_ts * w3_reuse_term2) * shape_phi_theta[j]
-                              + lambda_psi * r_prime_phi_ts * (w_prime_psi_ts + shape_phi_theta[j] + grad_phi_ts * grad_shape_phi_theta[j])
-                              - (shape_pressure[j] * inv_rho_partial_phi_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j])) * shape_mu_phi[i];
-                      //  term iv
-                      mat += lambda_phi * (grad_shape_phi_theta[j] * grad_shape_mu_phi[i])
-                          +  lambda_phi * shape_rho_theta[j] * (grad_phi_ts * grad_inv_rho_ts) * shape_mu_phi[i]
-                          +  lambda_phi * rho_ts * (grad_shape_phi_theta[j] * grad_inv_rho_ts) * shape_mu_phi[i]
-                          +  lambda_phi * rho_ts * (grad_phi_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi[i];
-                      // todo: add face integral term v
+                          // w3
+                          //  term i
+                          mat += shape_mu_phi[j] * shape_mu_phi[i];
+                          //  term ii
+                          mat += (-((r_prime_psi_ts * r_prime_phi_ts
+                                     + r_psi_ts * r_prime_prime_phi_ts ) * shape_phi_theta[j]
+                                    * latent_heat * (1. - temperature_ts/melting_t))
+                                  + r_psi_ts * r_prime_phi_ts * latent_heat/melting_t * shape_temperature_theta[j]
+                                  + (shape_c_partial_phi_theta[j] * w35_reuse_term1
+                                     + c_partial_phi_ts * shape_temperature_theta[j] * log_t_ts_tm)) * shape_mu_phi[i];
+                          //  term iii
+                          mat += (-(lambda_phi * w_prime_prime_phi_ts
+                                    + lambda_psi * r_prime_prime_phi_ts * w3_reuse_term2) * shape_phi_theta[j]
+                                  + lambda_psi * r_prime_phi_ts * (w_prime_psi_ts + shape_phi_theta[j] + grad_phi_ts * grad_shape_phi_theta[j])
+                                  - (shape_pressure[j] * inv_rho_partial_phi_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j])) * shape_mu_phi[i];
+                          //  term iv
+                          mat += lambda_phi * (grad_shape_phi_theta[j] * grad_shape_mu_phi[i])
+                              +  lambda_phi * shape_rho_theta[j] * (grad_phi_ts * grad_inv_rho_ts) * shape_mu_phi[i]
+                              +  lambda_phi * rho_ts * (grad_shape_phi_theta[j] * grad_inv_rho_ts) * shape_mu_phi[i]
+                              +  lambda_phi * rho_ts * (grad_phi_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi[i];
+                          // todo: add face integral term v
 
-                      // w4
-                      mat += (rho_ts * (shape_psi[j]/present_timestep + vel_ts * grad_shape_psi_theta[j]
-                                        + shape_vel_theta[j] * grad_psi_ts)
-                              + shape_rho_theta[j] * D_psi_D_t_ts + mobility_psi * shape_mu_psi[j]) * shape_mu_psi[i];
+                          // w4
+                          mat += (rho_ts * (shape_psi[j]/present_timestep + vel_ts * grad_shape_psi_theta[j]
+                                            + shape_vel_theta[j] * grad_psi_ts)
+                                  + shape_rho_theta[j] * D_psi_D_t_ts + mobility_psi * shape_mu_psi[j]) * shape_mu_psi[i];
 
-                      // w5
-                      //  term i
-                      mat += shape_mu_psi[j] * shape_mu_psi[i];
-                      //  term ii
-                      mat += ( -( (r_prime_prime_psi_ts * r_psi_ts * shape_psi_theta[j]
-                                   + r_prime_psi_ts * r_prime_phi_ts * shape_phi_theta[j])
-                                  * latent_heat * (1. - temperature_ts/melting_t))
-                               + r_prime_psi_ts * r_phi_ts * latent_heat/melting_t * shape_temperature_theta[j]
-                               + (shape_c_partial_psi_theta[j] * w35_reuse_term1
-                                  + c_partial_psi_ts * shape_temperature_theta[j] * log_t_ts_tm)) * shape_mu_psi[i];
-                      //  term iii
-                      mat += (-(r_prime_phi_ts * shape_phi_theta[j] * lambda_psi * w_prime_psi_ts
-                               + r_phi_ts * lambda_psi * w_prime_prime_psi_ts * shape_psi_theta[j])
-                          -  (shape_pressure[j] * inv_rho_partial_psi_ts + pressure_star[q] * shape_inv_rho_partial_psi_theta[j])) * shape_mu_psi[i];
-                      //  term iv
-                      mat += - (r_prime_phi_ts * shape_phi_theta[j] * lambda_psi * grad_psi_ts
-                               + r_phi_ts * lambda_psi * grad_shape_psi_theta[j]) * grad_shape_mu_psi[i]
-                          - lambda_psi * shape_rho_theta[j] * r_phi_ts * (grad_psi_ts * grad_inv_rho_ts) * shape_mu_psi[i]
-                          - lambda_psi * rho_ts * r_prime_phi_ts * shape_phi_theta[j] * (grad_psi_ts * grad_inv_rho_ts) * shape_mu_psi[i]
-                          - lambda_psi * rho_ts * r_phi_ts * (grad_shape_psi_theta[j] * grad_inv_rho_ts) * shape_mu_psi[i]
-                          - lambda_psi * rho_ts * r_phi_ts * (grad_psi_ts * grad_shape_inv_rho_theta[j]) * shape_mu_psi[i];
+                          // w5
+                          //  term i
+                          mat += shape_mu_psi[j] * shape_mu_psi[i];
+                          //  term ii
+                          mat += ( -( (r_prime_prime_psi_ts * r_psi_ts * shape_psi_theta[j]
+                                       + r_prime_psi_ts * r_prime_phi_ts * shape_phi_theta[j])
+                                      * latent_heat * (1. - temperature_ts/melting_t))
+                                   + r_prime_psi_ts * r_phi_ts * latent_heat/melting_t * shape_temperature_theta[j]
+                                   + (shape_c_partial_psi_theta[j] * w35_reuse_term1
+                                      + c_partial_psi_ts * shape_temperature_theta[j] * log_t_ts_tm)) * shape_mu_psi[i];
+                          //  term iii
+                          mat += (-(r_prime_phi_ts * shape_phi_theta[j] * lambda_psi * w_prime_psi_ts
+                                    + r_phi_ts * lambda_psi * w_prime_prime_psi_ts * shape_psi_theta[j])
+                                  -  (shape_pressure[j] * inv_rho_partial_psi_ts + pressure_star[q] * shape_inv_rho_partial_psi_theta[j])) * shape_mu_psi[i];
+                          //  term iv
+                          mat += - (r_prime_phi_ts * shape_phi_theta[j] * lambda_psi * grad_psi_ts
+                                    + r_phi_ts * lambda_psi * grad_shape_psi_theta[j]) * grad_shape_mu_psi[i]
+                              - lambda_psi * shape_rho_theta[j] * r_phi_ts * (grad_psi_ts * grad_inv_rho_ts) * shape_mu_psi[i]
+                              - lambda_psi * rho_ts * r_prime_phi_ts * shape_phi_theta[j] * (grad_psi_ts * grad_inv_rho_ts) * shape_mu_psi[i]
+                              - lambda_psi * rho_ts * r_phi_ts * (grad_shape_psi_theta[j] * grad_inv_rho_ts) * shape_mu_psi[i]
+                              - lambda_psi * rho_ts * r_phi_ts * (grad_psi_ts * grad_shape_inv_rho_theta[j]) * shape_mu_psi[i];
 
-                      // w6
-                      mat += (shape_rho_theta[j] * D_vel_Dt_ts
-                              + rho_ts * (shape_vel[j]/present_timestep + vel_bar * grad_shape_vel[j] * theta
-                                          + 0.5 * div_vel_bar * shape_vel_theta[j])) * shape_vel[i]
-                          -  shape_pressure[j] * shape_div_vel[i]
-                          +  scalar_product(shape_eta_theta[j] * e_ts + eta_ts * shape_e_theta[j], grad_shape_vel[i])
-                          -  scalar_product(shape_rho_theta[j] * gamma_ts + rho_ts * shape_gamma_theta[j], grad_shape_vel[i]);
+                          // w6
+                          mat += (shape_rho_theta[j] * D_vel_Dt_ts
+                                  + rho_ts * (shape_vel[j]/present_timestep + vel_bar * grad_shape_vel[j] * theta
+                                              + 0.5 * div_vel_bar * shape_vel_theta[j])) * shape_vel[i]
+                              -  shape_pressure[j] * shape_div_vel[i]
+                              +  scalar_product(shape_eta_theta[j] * e_ts + eta_ts * shape_e_theta[j], grad_shape_vel[i])
+                              -  scalar_product(shape_rho_theta[j] * gamma_ts + rho_ts * shape_gamma_theta[j], grad_shape_vel[i]);
 
-                      // w7
-                      mat += (- theta * shape_div_vel[j]
-                              + (shape_inv_rho_partial_phi_theta[j] * h_ts + inv_rho_partial_phi_ts * shape_h_ts[j])
-                              - (shape_inv_rho_partial_psi_theta[j] * mobility_psi * mu_psi_star[q]
-                                  + inv_rho_partial_psi_ts * mobility_psi * shape_mu_psi[j])) * shape_pressure[i];
+                          // w7
+                          mat += (- theta * shape_div_vel[j]
+                                  + (shape_inv_rho_partial_phi_theta[j] * h_ts + inv_rho_partial_phi_ts * shape_h_ts[j])
+                                  - (shape_inv_rho_partial_psi_theta[j] * mobility_psi * mu_psi_star[q]
+                                     + inv_rho_partial_psi_ts * mobility_psi * shape_mu_psi[j])) * shape_pressure[i];
 
-                      // w8
-                      //  term i
-                      mat += (shape_rho_theta[j] * c_ts * D_temperature_Dt_ts + rho_ts * shape_c_theta[j] * D_temperature_Dt_ts
-                              +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
-                                                  + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
-                      //  term ii
-                      mat +=(-2. * mobility_phi * (grad_mu_phi_ts * grad_shape_mu_phi[j] * theta
-                                                   + 2. * mobility_psi * mu_psi_ts * shape_mu_psi[j])
-                             -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts)
-                             -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts)
-                             - eta_ts * scalar_product(e_ts, grad_shape_vel[j] * theta)) * shape_temperature[i];
-                      //  term iii
-                      mat += thermal_conductivity * grad_shape_temperature_theta[j] * grad_shape_temperature[i];
-                      //  term iv
-                      mat += latent_heat/melting_t * (r_prime_psi_ts * shape_psi_theta[j] * r_prime_phi_ts * h_ts
-                                                      + r_psi_ts * r_prime_prime_phi_ts * shape_phi_theta[j] * h_ts
-                                                      + r_psi_ts * r_prime_phi_ts * shape_h_ts[j]
-                                                      - r_prime_prime_psi_ts * shape_psi_theta[j] * r_phi_ts * mobility_psi * mu_psi_ts
-                                                      - r_prime_psi_ts * r_prime_phi_ts * shape_phi_theta[j] * mobility_psi * mu_psi_ts
-                                                      - r_prime_psi_ts * r_phi_ts * mobility_psi * shape_mu_psi[j])
-                          * temperature_ts * shape_temperature[i]
-                          + latent_heat/melting_t * (r_psi_ts * r_prime_phi_ts * h_ts
-                                                     - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_ts)
-                          * shape_temperature_theta[j] * shape_temperature[i];
-                      //  term v
-                      mat += (shape_c_partial_phi_theta[j] * h_ts + c_partial_phi_ts * shape_h_ts[j]
-                              - shape_c_partial_psi_theta[j] * mobility_psi * mu_psi_star[q]
-                              - c_partial_psi_ts * mobility_psi * shape_mu_psi[j])
-                          *  temperature_ts * log_t_ts_tm * shape_temperature[i]
-                          +  (c_partial_phi_ts * h_ts - c_partial_psi_ts * mobility_psi * mu_psi_star[q])
-                          *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
+                          // w8
+                          //  term i
+                          mat += (shape_rho_theta[j] * c_ts * D_temperature_Dt_ts + rho_ts * shape_c_theta[j] * D_temperature_Dt_ts
+                                  +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
+                                                      + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
+                          //  term ii
+                          mat +=(-2. * mobility_phi * (grad_mu_phi_ts * grad_shape_mu_phi[j] * theta
+                                                       + 2. * mobility_psi * mu_psi_ts * shape_mu_psi[j])
+                                 -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts)
+                                 -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts)
+                                 - eta_ts * scalar_product(e_ts, grad_shape_vel[j] * theta)) * shape_temperature[i];
+                          //  term iii
+                          mat += thermal_conductivity * grad_shape_temperature_theta[j] * grad_shape_temperature[i];
+                          //  term iv
+                          mat += latent_heat/melting_t * (r_prime_psi_ts * shape_psi_theta[j] * r_prime_phi_ts * h_ts
+                                                          + r_psi_ts * r_prime_prime_phi_ts * shape_phi_theta[j] * h_ts
+                                                          + r_psi_ts * r_prime_phi_ts * shape_h_ts[j]
+                                                          - r_prime_prime_psi_ts * shape_psi_theta[j] * r_phi_ts * mobility_psi * mu_psi_ts
+                                                          - r_prime_psi_ts * r_prime_phi_ts * shape_phi_theta[j] * mobility_psi * mu_psi_ts
+                                                          - r_prime_psi_ts * r_phi_ts * mobility_psi * shape_mu_psi[j])
+                              * temperature_ts * shape_temperature[i]
+                              + latent_heat/melting_t * (r_psi_ts * r_prime_phi_ts * h_ts
+                                                         - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_ts)
+                              * shape_temperature_theta[j] * shape_temperature[i];
+                          //  term v
+                          mat += (shape_c_partial_phi_theta[j] * h_ts + c_partial_phi_ts * shape_h_ts[j]
+                                  - shape_c_partial_psi_theta[j] * mobility_psi * mu_psi_star[q]
+                                  - c_partial_psi_ts * mobility_psi * shape_mu_psi[j])
+                              *  temperature_ts * log_t_ts_tm * shape_temperature[i]
+                              +  (c_partial_phi_ts * h_ts - c_partial_psi_ts * mobility_psi * mu_psi_star[q])
+                              *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
 
 
 
-                      cell_matrix(i,j) += mat * fe_values.JxW(q);
+                          cell_matrix(i,j) += mat * fe_values.JxW(q);
 
+                        }
                     }
 
-                    // w1,2
-                    rhs = - h_ts * shape_phi[i] - mobility_phi * (grad_mu_phi_star[q] * grad_shape_phi[i]);
+                  // w1,2
+                  rhs = - h_ts * shape_phi[i] - mobility_phi * (grad_mu_phi_star[q] * grad_shape_phi[i]);
 
-                    // w3
-                    //  term i
-                    rhs += - mu_phi_star[q] * shape_mu_phi[i];
-                    //  term ii
-                    rhs += (r_psi_ts * r_prime_phi_ts * latent_heat * (1. - temperature_ts/melting_t)
-                            - c_partial_phi_ts * w35_reuse_term1) * shape_mu_phi[i];
-                    //  term iii
-                    rhs += ((lambda_phi * w_prime_phi_ts + lambda_psi * r_prime_phi_ts) * w3_reuse_term2
-                            + pressure_star[q] * inv_rho_partial_phi_ts) * shape_mu_phi[i];
-                    //  term iv
-                    rhs += lambda_phi * (grad_phi_ts * grad_shape_mu_phi[i])
-                        +  lambda_phi * rho_ts * (grad_phi_ts * grad_inv_rho_ts) * shape_mu_phi[i];
+                  // w3
+                  //  term i
+                  rhs += - mu_phi_star[q] * shape_mu_phi[i];
+                  //  term ii
+                  rhs += (r_psi_ts * r_prime_phi_ts * latent_heat * (1. - temperature_ts/melting_t)
+                          - c_partial_phi_ts * w35_reuse_term1) * shape_mu_phi[i];
+                  //  term iii
+                  rhs += ((lambda_phi * w_prime_phi_ts + lambda_psi * r_prime_phi_ts) * w3_reuse_term2
+                          + pressure_star[q] * inv_rho_partial_phi_ts) * shape_mu_phi[i];
+                  //  term iv
+                  rhs += lambda_phi * (grad_phi_ts * grad_shape_mu_phi[i])
+                      +  lambda_phi * rho_ts * (grad_phi_ts * grad_inv_rho_ts) * shape_mu_phi[i];
 
-                    // w4
-                    rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_ts) * shape_mu_psi[i];
+                  // w4
+                  rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_ts) * shape_mu_psi[i];
 
-                    // w5
-                    //  term i
-                    rhs += - mu_psi_star[q] * shape_mu_psi[i];
-                    //  term ii
-                    rhs += (r_prime_psi_ts * r_phi_ts * latent_heat * (1. - temperature_ts/melting_t)
-                            - c_partial_psi_ts * w35_reuse_term1) * shape_mu_psi[i];
-                    //  term iii
-                    rhs += (r_phi_ts * lambda_psi * w_prime_psi_ts + pressure_star[q] * inv_rho_partial_psi_ts) * shape_mu_psi[i];
-                    //  term iv
-                    rhs += lambda_psi * r_phi_ts * (grad_psi_ts * grad_shape_mu_psi[i])
-                        +  lambda_psi * rho_ts * r_phi_ts * (grad_psi_ts * grad_inv_rho_ts) * shape_mu_psi[i];
+                  // w5
+                  //  term i
+                  rhs += - mu_psi_star[q] * shape_mu_psi[i];
+                  //  term ii
+                  rhs += (r_prime_psi_ts * r_phi_ts * latent_heat * (1. - temperature_ts/melting_t)
+                          - c_partial_psi_ts * w35_reuse_term1) * shape_mu_psi[i];
+                  //  term iii
+                  rhs += (r_phi_ts * lambda_psi * w_prime_psi_ts + pressure_star[q] * inv_rho_partial_psi_ts) * shape_mu_psi[i];
+                  //  term iv
+                  rhs += lambda_psi * r_phi_ts * (grad_psi_ts * grad_shape_mu_psi[i])
+                      +  lambda_psi * rho_ts * r_phi_ts * (grad_psi_ts * grad_inv_rho_ts) * shape_mu_psi[i];
 
-                    // w6
-                    rhs += - rho_ts * D_vel_Dt_ts * shape_vel[i]
-                        +    pressure_star[q] * shape_div_vel[i]
-                        -    eta_ts * scalar_product(e_ts, grad_shape_vel[i])
-                        +    rho_ts * scalar_product(gamma_ts, grad_shape_vel[i]);
+                  // w6
+                  rhs += - rho_ts * D_vel_Dt_ts * shape_vel[i]
+                      +    pressure_star[q] * shape_div_vel[i]
+                      -    eta_ts * scalar_product(e_ts, grad_shape_vel[i])
+                      +    rho_ts * scalar_product(gamma_ts, grad_shape_vel[i]);
 
-                    // w7
-                    rhs += (div_vel_ts - inv_rho_partial_phi_ts * h_ts
-                        +  inv_rho_partial_psi_ts * mobility_psi * mu_psi_ts) * shape_pressure[i];
+                  // w7
+                  rhs += (div_vel_ts - inv_rho_partial_phi_ts * h_ts
+                          +  inv_rho_partial_psi_ts * mobility_psi * mu_psi_ts) * shape_pressure[i];
 
-                    // w8
-                    //  term i
-                    rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
-                    //  term ii
-                    rhs += (mobility_phi * (grad_mu_phi_ts * grad_mu_phi_ts)
-                            + mobility_psi * (grad_mu_psi_ts * grad_mu_psi_ts)
-                            + eta_ts * scalar_product(e_ts, grad_vel_ts)) * shape_temperature[i];
-                    //  term iii
-                    rhs += - thermal_conductivity * grad_temperature_ts * grad_shape_temperature[i];
-                    //  term iv
-                    rhs += - (latent_heat * r_psi_ts * r_prime_psi_ts * h_ts
-                              - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_ts)
-                        * temperature_ts/melting_t * shape_temperature[i];
-                    // term v
-                    rhs += - (c_partial_phi_ts * h_ts - c_partial_psi_ts * mobility_psi * mu_psi_star[q])
-                        * temperature_ts * log_t_ts_tm * shape_temperature[i];
+                  // w8
+                  //  term i
+                  rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
+                  //  term ii
+                  rhs += (mobility_phi * (grad_mu_phi_ts * grad_mu_phi_ts)
+                          + mobility_psi * (grad_mu_psi_ts * grad_mu_psi_ts)
+                          + eta_ts * scalar_product(e_ts, grad_vel_ts)) * shape_temperature[i];
+                  //  term iii
+                  rhs += - thermal_conductivity * grad_temperature_ts * grad_shape_temperature[i];
+                  //  term iv
+                  rhs += - (latent_heat * r_psi_ts * r_prime_psi_ts * h_ts
+                            - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_ts)
+                      * temperature_ts/melting_t * shape_temperature[i];
+                  // term v
+                  rhs += - (c_partial_phi_ts * h_ts - c_partial_psi_ts * mobility_psi * mu_psi_star[q])
+                      * temperature_ts * log_t_ts_tm * shape_temperature[i];
 
 
-                    cell_rhs(i) += rhs * fe_values.JxW(q);
+                  cell_rhs(i) += rhs * fe_values.JxW(q);
                 }
-            }
+              }
 
 
             cell->get_dof_indices(local_dof_indices);
-            constraints.distribute_local_to_global(cell_matrix,
-                                                   cell_rhs,
-                                                   local_dof_indices,
-                                                   system_matrix,
-                                                   system_rhs);
-        }
+            constraints_newton_update.distribute_local_to_global(cell_matrix,
+                                                                 cell_rhs,
+                                                                 local_dof_indices,
+                                                                 system_matrix,
+                                                                 system_rhs);
+          }
 
     system_matrix.compress(VectorOperation::add);
 //    preconditioner_matrix.compress(VectorOperation::add);
@@ -1350,70 +1420,107 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 template <int dim>
 void StokesProblem<dim>::newton_iteration()
 {
+  TimerOutput::Scope t(computing_timer, "Newton");
+  // set to 1 for testing
+  const unsigned int max_iter = 1;
+  bool assemble_matrix = false;
+  assemble_system(assemble_matrix);
+  double residual = system_rhs.l2_norm();
+
+  pcout << "initial residual=" << residual << std::endl;
+
+#ifdef USE_PETSC_LA
+  SolverControl cn;
+  PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
+#else
+  TrilinosWrappers::SolverDirect::AdditionalData data;
+  data.solver_type = "Amesos_Lapack";
+  SolverControl                  solver_control(1000, 1e-10);
+  TrilinosWrappers::SolverDirect solver(solver_control, data);
+#endif
+
+  assemble_matrix = true;
+  VectorType locally_owned_solution(system_rhs);
+  locally_owned_solution = current_solution;
+  for (unsigned int k = 1; k <= max_iter; ++k) {
+    assemble_system(assemble_matrix);
+    solver.solve(system_matrix, newton_update, system_rhs);
+
+    constraints_newton_update.distribute(newton_update);
+
+    locally_owned_solution += newton_update;
+    current_solution = locally_owned_solution;
+
+    residual = system_rhs.l2_norm();
+    pcout << "k= " << k << "  residual = " << residual <<  std::endl;
+
+    if (residual < 1.e-6 * hmin)
+      break;
+    }
 
 }
 
 template <int dim>
 void StokesProblem<dim>::solve()
 {
-    TimerOutput::Scope t(computing_timer, "solve");
+//    TimerOutput::Scope t(computing_timer, "solve");
 
-    LA::MPI::PreconditionAMG prec_A;
-    {
-        LA::MPI::PreconditionAMG::AdditionalData data;
+//    LA::MPI::PreconditionAMG prec_A;
+//    {
+//        LA::MPI::PreconditionAMG::AdditionalData data;
 
-#ifdef USE_PETSC_LA
-        data.symmetric_operator = true;
-#endif
-        prec_A.initialize(system_matrix.block(0, 0), data);
-    }
+//#ifdef USE_PETSC_LA
+//        data.symmetric_operator = true;
+//#endif
+//        prec_A.initialize(system_matrix.block(0, 0), data);
+//    }
 
-    LA::MPI::PreconditionAMG prec_S;
-    {
-        LA::MPI::PreconditionAMG::AdditionalData data;
+//    LA::MPI::PreconditionAMG prec_S;
+//    {
+//        LA::MPI::PreconditionAMG::AdditionalData data;
 
-#ifdef USE_PETSC_LA
-        data.symmetric_operator = true;
-#endif
-        prec_S.initialize(preconditioner_matrix.block(1, 1), data);
-    }
+//#ifdef USE_PETSC_LA
+//        data.symmetric_operator = true;
+//#endif
+//        prec_S.initialize(preconditioner_matrix.block(1, 1), data);
+//    }
 
-    using mp_inverse_t = LinearSolvers::InverseMatrix<LA::MPI::SparseMatrix,
-          LA::MPI::PreconditionAMG>;
-    const mp_inverse_t mp_inverse(preconditioner_matrix.block(1, 1), prec_S);
+//    using mp_inverse_t = LinearSolvers::InverseMatrix<LA::MPI::SparseMatrix,
+//          LA::MPI::PreconditionAMG>;
+//    const mp_inverse_t mp_inverse(preconditioner_matrix.block(1, 1), prec_S);
 
-    const LinearSolvers::BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG,
-          mp_inverse_t>
-          preconditioner(prec_A, mp_inverse);
+//    const LinearSolvers::BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG,
+//          mp_inverse_t>
+//          preconditioner(prec_A, mp_inverse);
 
-    SolverControl solver_control(system_matrix.m(),
-                                 1e-10 * system_rhs.l2_norm());
+//    SolverControl solver_control(system_matrix.m(),
+//                                 1e-10 * system_rhs.l2_norm());
 
-    SolverMinRes<LA::MPI::BlockVector> solver(solver_control);
+//    SolverMinRes<LA::MPI::BlockVector> solver(solver_control);
 
-    LA::MPI::BlockVector distributed_solution(owned_partitioning,
-            mpi_communicator);
+//    LA::MPI::BlockVector distributed_solution(block_owned_partitioning,
+//            mpi_communicator);
 
-    constraints.set_zero(distributed_solution);
+//    constraints.set_zero(distributed_solution);
 
-    solver.solve(system_matrix,
-                 distributed_solution,
-                 system_rhs,
-                 preconditioner);
+//    solver.solve(system_matrix,
+//                 distributed_solution,
+//                 system_rhs,
+//                 preconditioner);
 
-    pcout << "   Solved in " << solver_control.last_step() << " iterations."
-          << std::endl;
+//    pcout << "   Solved in " << solver_control.last_step() << " iterations."
+//          << std::endl;
 
-    constraints.distribute(distributed_solution);
+//    constraints.distribute(distributed_solution);
 
-    locally_relevant_solution = distributed_solution;
-    const double mean_pressure =
-        VectorTools::compute_mean_value(dof_handler,
-                                        QGauss<dim>(velocity_degree + 2),
-                                        locally_relevant_solution,
-                                        dim);
-    distributed_solution.block(1).add(-mean_pressure);
-    locally_relevant_solution.block(1) = distributed_solution.block(1);
+//    locally_relevant_solution = distributed_solution;
+//    const double mean_pressure =
+//        VectorTools::compute_mean_value(dof_handler,
+//                                        QGauss<dim>(velocity_degree + 2),
+//                                        locally_relevant_solution,
+//                                        dim);
+//    distributed_solution.block(1).add(-mean_pressure);
+//    locally_relevant_solution.block(1) = distributed_solution.block(1);
 }
 
 
@@ -1497,11 +1604,15 @@ void StokesProblem<dim>::run()
 
         make_grid();
 
-
+#ifdef USE_DIRECT_SOLVER
         setup_system();
+#else
+        setup_block_system();
+#endif
         setup_initial_condition();
 
-        assemble_system();
+        // change max newton iteration
+        newton_iteration();
 //        solve();
 
         if (Utilities::MPI::n_mpi_processes(mpi_communicator) <= 32)
