@@ -25,7 +25,8 @@
 #include <deal.II/lac/generic_linear_algebra.h>
 
 //#define FORCE_USE_OF_TRILINOS
-#define USE_DIRECT_SOLVER
+#define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
+
 namespace LA
 {
 #if defined(DEAL_II_WITH_PETSC) && !defined(DEAL_II_PETSC_WITH_COMPLEX) && \
@@ -282,9 +283,10 @@ namespace InitialConditions
   class InitialValues : public Function<dim>
   {
   public:
-      InitialValues (const double epsilon, const TestCase testcase, const Extractors<dim> &ex)
+      InitialValues (const double epsilon, const double initial_t, const TestCase testcase, const Extractors<dim> &ex)
                   : Function<dim>(dim + 6),
                     eps(epsilon),
+                    initial_temperature(initial_t),
                     test_case(testcase),
                     extractors(ex)
                     {}
@@ -293,6 +295,7 @@ namespace InitialConditions
                                 Vector<double> &  value) const override;
   private:
       const double eps;
+      const double initial_temperature;
       const TestCase test_case;
       const Extractors<dim> extractors;
 
@@ -303,36 +306,43 @@ namespace InitialConditions
                                         Vector<double> &  values) const
   {
       const double eps1=eps*sqrt(2);  //sqrt(2)* eps
-      double d=0;
+      const double x=p(0);
+      const double y=p(1);
 
       switch (test_case)
         {
         case TestCase::test1: {
-            Point<dim> center, axes;
-            double radius;
+            Point<dim> center;
+            const double R = 1.;
+            double r;
             switch (dim)
               {
               case 2: //2D case
                 {
-                  center=Point<dim>(0,0);
-                  axes=Point<dim>(0.5,0.5);
-                  radius=sqrt(axes(0)*axes(1));
+                  center = Point<dim>(0,0);
+                  r = std::sqrt(x*x + y*y);
                   break;
                 }
               case 3: //3D case
                 {
-                  center=Point<dim>(0,0,0);
-                  axes=Point<dim>(0.5,0.5,0.5);
-                  radius=pow(axes(0)*axes(1)*axes(2),1./3.);
+                  ExcNotImplemented("3D not implemented yet!");
                   break;
                 }
               }
-            for(unsigned int i=0; i<dim; i++)
-              d+=pow(p(i)/axes(i),2);
-            d=(sqrt(d)-1)*radius;
 
-            values(extractors.temperature.component) = 10.;
+            const double d = r - R;
+            const double psi = 0.5 * (1. + std::tanh(d/eps1));
 
+            for(unsigned int comp = 0; comp < values.size(); ++comp)
+              {
+                if (comp == extractors.psi_ac.component)
+                  values(comp) = psi;
+                else if (comp == extractors.temperature.component)
+                  values(comp) = initial_temperature;
+                else
+                  values(comp) = 0;
+
+              }
             break;
           }
         case TestCase::test2: {
@@ -342,10 +352,6 @@ namespace InitialConditions
         default:
           Assert(false, ExcNotImplemented("Please choose the right test case"));
         }
-      double phi=-tanh(d/eps1);
-      values(extractors.phi_ch.component) = phi;
-
-
   }
 
 }// namespace initialcondition
@@ -512,10 +518,13 @@ private:
     double present_timestep, old_timestep;
     const double cl,cs,cg;
     const double eta_l,eta_s,eta_g;
+    const double surface_tension;
     const double lambda_phi, lambda_psi;
     const double mobility_phi, mobility_psi;
     const double latent_heat, melting_t;
     const double thermal_conductivity;
+    const double initial_temperature; //Ta
+
     const MappingQ<dim> mapping;
 
     double hmin;
@@ -583,23 +592,25 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
                       TimerOutput::wall_times)
     , component_ids(ComponentIndices<dim>())
     , extractors(ComponentIndices<dim>())
-    , eps(0.01)
+    , eps(0.05)
     , test_case(testcase)
     , n_refinement(4)
-    , density_s(2.)
+    , density_s(1.)
     , density_l(1.)
-    , density_g(0.1)
+    , density_g(0.01)
     , inv_density_s(1./density_s)
     , inv_density_l(1./density_l)
     , inv_density_g(1./density_g)
     , present_timestep(0.001), old_timestep(present_timestep)
-    , cl(1.), cs(1.), cg(1.)
-    , eta_l(1.), eta_s(1.), eta_g(1.)
-    , lambda_phi(1.), lambda_psi(1.)
-    , mobility_phi(1e-3), mobility_psi(1e-3)
+    , cl(100.), cs(100.), cg(100.)
+    , eta_l(1.), eta_s(100.), eta_g(0.01)
+    , surface_tension(0.1)
+    , lambda_phi(1.), lambda_psi(3.*std::sqrt(2.) * surface_tension * eps * inv_density_l)/*which density should be used?*/
+    , mobility_phi(1e-4), mobility_psi(1e-4)
     , latent_heat(1.)
-    , melting_t(100.)
+    , melting_t(1.)
     , thermal_conductivity(1.)
+    , initial_temperature(0.5)
     , mapping(1)
 {
 
@@ -608,14 +619,34 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
 
 }
 
-
 template <int dim>
 void StokesProblem<dim>::make_grid()
 {
-    GridGenerator::hyper_cube(triangulation, 0., 1.);
-    triangulation.refine_global(n_refinement);
+  switch  (test_case)
+    {
+    case TestCase::test1: {
+//        If the colorize flag is true,
+//        then the boundary_ids of the boundary faces are assigned,
+//            such that the lower one in x-direction is 0, the upper one is 1.
+//            The indicators for the surfaces in y-direction are 2 and 3,
+//            the ones for z are 4 and 5.
+        const bool   colorize = true;
+        const double width = 2.;
+        GridGenerator::hyper_cube(triangulation, 0., width, colorize);
+        triangulation.refine_global(n_refinement);
 
-    hmin = GridTools::minimal_cell_diameter(triangulation, mapping)/std::sqrt(dim*1.);
+        break;
+      }
+    case TestCase::test2: {
+
+        break;
+      }
+    default:
+      Assert(false, ExcNotImplemented("Setting up iniital grid: Please choose the right test case"));
+    }
+
+  hmin = GridTools::minimal_cell_diameter(triangulation, mapping)/std::sqrt(dim*1.);
+  pcout<<" hmin = "<<hmin<<std::endl;
 }
 
 template <int dim>
@@ -627,9 +658,16 @@ void StokesProblem<dim>::setup_initial_condition()
 #else
   tmp_initial_sol.reinit(block_owned_partitioning, mpi_communicator);
 #endif
+
   VectorTools::interpolate(dof_handler,
-                           InitialConditions::InitialValues<dim>(eps, test_case, extractors),
+                           InitialConditions::InitialValues<dim>(eps,
+                                                                 initial_temperature,
+                                                                 test_case,
+                                                                 extractors),
                            tmp_initial_sol);
+
+
+
 
   locally_relevant_solution = tmp_initial_sol;
   old_solution = locally_relevant_solution;
@@ -640,16 +678,101 @@ void StokesProblem<dim>::setup_initial_condition()
 template <int dim>
 void StokesProblem<dim>::make_boundary_constraints()
 {
-  //todo: problem dependent
   constraints_boundary.reinit(locally_relevant_dofs);
   constraints_newton_update.reinit(locally_relevant_dofs);
-  FEValuesExtractors::Vector vel(extractors.velocities);
   DoFTools::make_hanging_node_constraints(dof_handler, constraints_boundary);
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           0,
-                                           InitialConditions::InitialValues<dim>(eps, test_case, extractors),
-                                           constraints_boundary,
-                                           fe.component_mask(extractors.velocities));
+  DoFTools::make_hanging_node_constraints(dof_handler, constraints_newton_update);
+
+  switch  (test_case)
+    {
+    case TestCase::test1: {
+
+        ComponentMask vel_v_masked(fe.n_components(), false);
+        vel_v_masked.set(extractors.velocities.first_vector_component, true);
+        {
+          // x=0, boundary id=0, velocity (u,v,w)
+          // u = 0
+          const types::boundary_id bc_id = 0;
+          ComponentMask vel_u_masked(fe.n_components(), false);
+          vel_u_masked.set(extractors.velocities.first_vector_component, true);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_boundary,
+                                                   vel_u_masked);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   vel_u_masked);
+        }
+
+        {
+          // x=y, boundary id=2, velocity (u,v,w)
+          // v = 0
+          const types::boundary_id bc_id = 2;
+          ComponentMask vel_v_masked(fe.n_components(), false);
+          vel_v_masked.set(extractors.velocities.first_vector_component + 1, true);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_boundary,
+                                                   vel_v_masked);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   vel_v_masked);
+        }
+
+        {
+          // x=width, boundary id=1,
+          // T = Ta
+          const types::boundary_id bc_id = 1;
+          ComponentMask temperature_masked(fe.n_components(), false);
+          temperature_masked.set(extractors.temperature.component, true);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ConstantFunction<dim>(initial_temperature, fe.n_components()),
+                                                   constraints_boundary,
+                                                   temperature_masked);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   temperature_masked);
+        }
+
+        {
+          // y=width, boundary id=3,
+          // T = Ta
+          const types::boundary_id bc_id = 3;
+          ComponentMask temperature_masked(fe.n_components(), false);
+          temperature_masked.set(extractors.temperature.component, true);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ConstantFunction<dim>(initial_temperature, fe.n_components()),
+                                                   constraints_boundary,
+                                                   temperature_masked);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   temperature_masked);
+        }
+
+
+
+        break;
+      }
+    case TestCase::test2: {
+
+        break;
+      }
+    default:
+      Assert(false, ExcNotImplemented("Setting up constraints: Please choose the right test case"));
+    }
+
   constraints_boundary.close();
   constraints_newton_update.close();
 
@@ -678,7 +801,8 @@ Table<2, DoFTools::Coupling> StokesProblem<dim>::make_coupling()
                    || d == component_ids.phi_ch
                    || d == component_ids.psi_ac
                    || d == component_ids.temperature
-                   || d == component_ids.pressure))
+                   || d == component_ids.pressure
+                   || (d >= component_ids.velocities && d < component_ids.velocities+dim)))
         coupling[c][d] = DoFTools::always;
       else if (c == component_ids.phi_ch
                && (d == component_ids.phi_ch
@@ -832,6 +956,7 @@ void StokesProblem<dim>::setup_block_system()
 template <int dim>
 void StokesProblem<dim>::setup_system()
 {
+#ifdef USE_DIRECT_SOLVER
     TimerOutput::Scope t(computing_timer, "setup");
 
     dof_handler.distribute_dofs(fe);
@@ -875,6 +1000,7 @@ void StokesProblem<dim>::setup_system()
 
     system_rhs.reinit(locally_owned_dofs, mpi_communicator);
     newton_update.reinit(system_rhs);
+#endif
 }
 
 
@@ -906,7 +1032,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
     const unsigned int n_q_points    = quadrature_formula.size();
 
     FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-    FullMatrix<double> cell_matrix2(dofs_per_cell, dofs_per_cell);
+//    FullMatrix<double> cell_matrix2(dofs_per_cell, dofs_per_cell);
     Vector<double>     cell_rhs(dofs_per_cell);
 
     std::vector<double>         phi_star(n_q_points);
@@ -992,8 +1118,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
     for (const auto &cell : dof_handler.active_cell_iterators())
         if (cell->is_locally_owned())
         {
+            cell->get_dof_indices(local_dof_indices);
             cell_matrix  = 0;
-            cell_matrix2 = 0;
+//            cell_matrix2 = 0;
             cell_rhs     = 0;
 
             fe_values.reinit(cell);
@@ -1034,12 +1161,12 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const double c1        = 1.-theta;
               const double phi_ts    = theta * phi_star[q] + c1 * phi_n[q];
               const double psi_ts    = theta * psi_star[q] + c1 * psi_n[q];
-              const double mu_psi_ts = theta * mu_psi_star[q] + c1 * mu_psi_n[q];
+//              const double mu_psi_ts = theta * mu_psi_star[q] + c1 * mu_psi_n[q];
 
               const Tensor<1,dim> grad_phi_ts    = theta * grad_phi_star[q] + c1 * grad_phi_n[q];
               const Tensor<1,dim> grad_psi_ts    = theta * grad_psi_star[q] + c1 * grad_psi_n[q];
-              const Tensor<1,dim> grad_mu_phi_ts = theta * grad_mu_phi_star[q] + c1 * grad_mu_phi_n[q];
-              const Tensor<1,dim> grad_mu_psi_ts = theta * grad_mu_psi_star[q] + c1 * grad_mu_psi_n[q];
+//              const Tensor<1,dim> grad_mu_phi_ts = theta * grad_mu_phi_star[q] + c1 * grad_mu_phi_n[q];
+//              const Tensor<1,dim> grad_mu_psi_ts = theta * grad_mu_psi_star[q] + c1 * grad_mu_psi_n[q];
               const Tensor<1,dim> vel_ts         = theta * vel_star[q] + c1 * vel_n[q];
               const Tensor<2,dim> grad_vel_ts    = theta * grad_vel_star[q] + c1 * grad_vel_n[q];
               const double div_vel_ts            = trace(grad_vel_ts);
@@ -1242,8 +1369,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           //  term i
                           mat += shape_mu_phi[j] * shape_mu_phi[i];
                           //  term ii
-                          mat += (-((r_prime_psi_ts * r_prime_phi_ts
-                                     + r_psi_ts * r_prime_prime_phi_ts ) * shape_phi_theta[j]
+                          mat += (-((r_prime_psi_ts * r_prime_phi_ts * shape_psi_theta[j]
+                                     + r_psi_ts * r_prime_prime_phi_ts * shape_phi_theta[j])
                                     * latent_heat * (1. - temperature_ts/melting_t))
                                   + r_psi_ts * r_prime_phi_ts * latent_heat/melting_t * shape_temperature_theta[j]
                                   + (shape_c_partial_phi_theta[j] * w35_reuse_term1
@@ -1251,13 +1378,14 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           //  term iii
                           mat += (-(lambda_phi * w_prime_prime_phi_ts
                                     + lambda_psi * r_prime_prime_phi_ts * w3_reuse_term2) * shape_phi_theta[j]
-                                  + lambda_psi * r_prime_phi_ts * (w_prime_psi_ts + shape_phi_theta[j] + grad_phi_ts * grad_shape_phi_theta[j])
+                                  + lambda_psi * r_prime_phi_ts * (w_prime_psi_ts * shape_phi_theta[j] + grad_phi_ts * grad_shape_phi_theta[j])
                                   - (shape_pressure[j] * inv_rho_partial_phi_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j])) * shape_mu_phi[i];
                           //  term iv
                           mat += lambda_phi * (grad_shape_phi_theta[j] * grad_shape_mu_phi[i])
                               +  lambda_phi * shape_rho_theta[j] * (grad_phi_ts * grad_inv_rho_ts) * shape_mu_phi[i]
                               +  lambda_phi * rho_ts * (grad_shape_phi_theta[j] * grad_inv_rho_ts) * shape_mu_phi[i]
                               +  lambda_phi * rho_ts * (grad_phi_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi[i];
+
                           // todo: add face integral term v
 
                           // w4
@@ -1303,12 +1431,12 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
                           // w8
                           //  term i
-                          mat += (shape_rho_theta[j] * c_ts * D_temperature_Dt_ts + rho_ts * shape_c_theta[j] * D_temperature_Dt_ts
+                          mat += ((shape_rho_theta[j] * c_ts + rho_ts * shape_c_theta[j]) * D_temperature_Dt_ts
                                   +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
                                                       + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
                           //  term ii
-                          mat +=(-2. * mobility_phi * (grad_mu_phi_ts * grad_shape_mu_phi[j] * theta
-                                                       + 2. * mobility_psi * mu_psi_ts * shape_mu_psi[j])
+                          mat +=(-2. * ( mobility_phi * grad_mu_phi_star[q] * grad_shape_mu_phi[j]
+                                         + mobility_psi * mu_psi_star[q] * shape_mu_psi[j])
                                  -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts)
                                  -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts)
                                  - eta_ts * scalar_product(e_ts, grad_shape_vel[j] * theta)) * shape_temperature[i];
@@ -1318,12 +1446,12 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           mat += latent_heat/melting_t * (r_prime_psi_ts * shape_psi_theta[j] * r_prime_phi_ts * h_ts
                                                           + r_psi_ts * r_prime_prime_phi_ts * shape_phi_theta[j] * h_ts
                                                           + r_psi_ts * r_prime_phi_ts * shape_h_ts[j]
-                                                          - r_prime_prime_psi_ts * shape_psi_theta[j] * r_phi_ts * mobility_psi * mu_psi_ts
-                                                          - r_prime_psi_ts * r_prime_phi_ts * shape_phi_theta[j] * mobility_psi * mu_psi_ts
+                                                          - r_prime_prime_psi_ts * shape_psi_theta[j] * r_phi_ts * mobility_psi * mu_psi_star[q]
+                                                          - r_prime_psi_ts * r_prime_phi_ts * shape_phi_theta[j] * mobility_psi * mu_psi_star[q]
                                                           - r_prime_psi_ts * r_phi_ts * mobility_psi * shape_mu_psi[j])
                               * temperature_ts * shape_temperature[i]
                               + latent_heat/melting_t * (r_psi_ts * r_prime_phi_ts * h_ts
-                                                         - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_ts)
+                                                         - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_star[q])
                               * shape_temperature_theta[j] * shape_temperature[i];
                           //  term v
                           mat += (shape_c_partial_phi_theta[j] * h_ts + c_partial_phi_ts * shape_h_ts[j]
@@ -1332,8 +1460,6 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                               *  temperature_ts * log_t_ts_tm * shape_temperature[i]
                               +  (c_partial_phi_ts * h_ts - c_partial_psi_ts * mobility_psi * mu_psi_star[q])
                               *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
-
-
 
                           cell_matrix(i,j) += mat * fe_values.JxW(q);
 
@@ -1350,14 +1476,14 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (r_psi_ts * r_prime_phi_ts * latent_heat * (1. - temperature_ts/melting_t)
                           - c_partial_phi_ts * w35_reuse_term1) * shape_mu_phi[i];
                   //  term iii
-                  rhs += ((lambda_phi * w_prime_phi_ts + lambda_psi * r_prime_phi_ts) * w3_reuse_term2
+                  rhs += (lambda_phi * w_prime_phi_ts + lambda_psi * r_prime_phi_ts * w3_reuse_term2
                           + pressure_star[q] * inv_rho_partial_phi_ts) * shape_mu_phi[i];
                   //  term iv
                   rhs += lambda_phi * (grad_phi_ts * grad_shape_mu_phi[i])
                       +  lambda_phi * rho_ts * (grad_phi_ts * grad_inv_rho_ts) * shape_mu_phi[i];
 
                   // w4
-                  rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_ts) * shape_mu_psi[i];
+                  rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_star[q]) * shape_mu_psi[i];
 
                   // w5
                   //  term i
@@ -1379,20 +1505,20 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
                   // w7
                   rhs += (div_vel_ts - inv_rho_partial_phi_ts * h_ts
-                          +  inv_rho_partial_psi_ts * mobility_psi * mu_psi_ts) * shape_pressure[i];
+                          +  inv_rho_partial_psi_ts * mobility_psi * mu_psi_star[q]) * shape_pressure[i];
 
                   // w8
                   //  term i
                   rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
                   //  term ii
-                  rhs += (mobility_phi * (grad_mu_phi_ts * grad_mu_phi_ts)
-                          + mobility_psi * (grad_mu_psi_ts * grad_mu_psi_ts)
+                  rhs += (mobility_phi * (grad_mu_phi_star[q] * grad_mu_phi_star[q])
+                          + mobility_psi * (grad_mu_psi_star[q] * grad_mu_psi_star[q])
                           + eta_ts * scalar_product(e_ts, grad_vel_ts)) * shape_temperature[i];
                   //  term iii
                   rhs += - thermal_conductivity * grad_temperature_ts * grad_shape_temperature[i];
                   //  term iv
-                  rhs += - (latent_heat * r_psi_ts * r_prime_psi_ts * h_ts
-                            - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_ts)
+                  rhs += - (latent_heat * r_psi_ts * r_prime_phi_ts * h_ts
+                            - r_prime_psi_ts * r_phi_ts * mobility_psi * mu_psi_star[q])
                       * temperature_ts/melting_t * shape_temperature[i];
                   // term v
                   rhs += - (c_partial_phi_ts * h_ts - c_partial_psi_ts * mobility_psi * mu_psi_star[q])
@@ -1403,14 +1529,12 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                 }
               }
 
-
-            cell->get_dof_indices(local_dof_indices);
             constraints_newton_update.distribute_local_to_global(cell_matrix,
                                                                  cell_rhs,
                                                                  local_dof_indices,
                                                                  system_matrix,
                                                                  system_rhs);
-          }
+          }// cell loop
 
     system_matrix.compress(VectorOperation::add);
 //    preconditioner_matrix.compress(VectorOperation::add);
@@ -1422,7 +1546,7 @@ void StokesProblem<dim>::newton_iteration()
 {
   TimerOutput::Scope t(computing_timer, "Newton");
   // set to 1 for testing
-  const unsigned int max_iter = 1;
+  const unsigned int max_iter = 10;
   bool assemble_matrix = false;
   assemble_system(assemble_matrix);
   double residual = system_rhs.l2_norm();
@@ -1443,19 +1567,19 @@ void StokesProblem<dim>::newton_iteration()
   VectorType locally_owned_solution(system_rhs);
   locally_owned_solution = current_solution;
   for (unsigned int k = 1; k <= max_iter; ++k) {
-    assemble_system(assemble_matrix);
-    solver.solve(system_matrix, newton_update, system_rhs);
+      assemble_system(assemble_matrix);
+      solver.solve(system_matrix, newton_update, system_rhs);
 
-    constraints_newton_update.distribute(newton_update);
+      constraints_newton_update.distribute(newton_update);
 
-    locally_owned_solution += newton_update;
-    current_solution = locally_owned_solution;
+      locally_owned_solution += newton_update;
+      current_solution = locally_owned_solution;
 
-    residual = system_rhs.l2_norm();
-    pcout << "k= " << k << "  residual = " << residual <<  std::endl;
+      residual = system_rhs.l2_norm();
+      pcout << "k= " << k << "  residual = " << residual <<  std::endl;
 
-    if (residual < 1.e-6 * hmin)
-      break;
+      if (residual < 1.e-6 * hmin)
+        break;
     }
 
 }
@@ -1602,8 +1726,8 @@ void StokesProblem<dim>::run()
     double runtime           = 0.;
     present_timestep = 0.01;
 
-    const unsigned int max_step_number = 1;
-    const unsigned int output_interval = 10;
+    const unsigned int max_step_number = 10;
+    const unsigned int output_interval = 1;
 
     make_grid();
 
@@ -1628,9 +1752,7 @@ void StokesProblem<dim>::run()
         old_solution = locally_relevant_solution; // n
         current_solution = locally_relevant_solution; // u^*, newton initial guess
 
-        // change max newton iteration
         newton_iteration();
-        //        solve();
 
         if (step_number % output_interval == 0)
           {
