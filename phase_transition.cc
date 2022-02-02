@@ -147,7 +147,7 @@ namespace InlineFunctions
   double f_partial_phi(const double phi, const double psi,
                     const double fl, const double fs, const double fg)
   {
-    return  r_prime(phi) * (r(psi) * (fl - fs) - fg);
+    return  r_prime(phi) * (r(psi) * (fl - fs) + fs - fg);
   }
 
   // partial f/ partial psi
@@ -163,7 +163,7 @@ namespace InlineFunctions
   double f_partial2_phi2(const double phi, const double psi,
                     const double fl, const double fs, const double fg)
   {
-    return  r_prime_prime(phi) * (r(psi) * (fl - fs) - fg);
+    return  r_prime_prime(phi) * (r(psi) * (fl - fs) + fs - fg);
   }
 
   // partial^2 f/ partial psi^2
@@ -195,7 +195,7 @@ namespace InlineFunctions
   double g_pratial_phi(const double psi,
                     const double gl, const double gs, const double gg)
   {
-    return  psi * (gl - gg) + gs;
+    return  psi * (gl - gs) + gs - gg;
   }
 
   inline
