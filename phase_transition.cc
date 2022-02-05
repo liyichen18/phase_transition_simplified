@@ -301,7 +301,7 @@ namespace InitialConditions
   void InitialValues<dim>::vector_value(const Point<dim> &p,
                                         Vector<double> &  values) const
   {
-      const double eps1=eps*sqrt(2);  //sqrt(2)* eps
+      const double eps1=eps * std::sqrt(2);  //sqrt(2)* eps
       const double x=p(0);
       const double y=p(1);
 
@@ -598,7 +598,7 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , extractors(ComponentIndices<dim>())
     , eps(0.05)
     , test_case(testcase)
-    , n_refinement(6)
+    , n_refinement(4)
     , density_s(1.)
     , density_l(1.)
     , density_g(0.01)
@@ -1405,7 +1405,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           //  term iii
                           mat += (-(lambda_phi * w_prime_prime_phi_ch_ts
                                     + lambda_psi * r_prime_prime_phi_ch_ts * w3_reuse_term2) * shape_phi_ch_theta[j]
-                                  + lambda_psi * r_prime_phi_ch_ts * (w_prime_psi_ac_ts * shape_phi_ch_theta[j] + grad_phi_ch_ts * grad_shape_phi_ch_theta[j])
+                                  + lambda_psi * r_prime_phi_ch_ts * (w_prime_psi_ac_ts * shape_psi_ac_theta[j] + grad_psi_ac_ts * grad_shape_psi_ac_theta[j])
                                   - (shape_pressure[j] * inv_rho_partial_phi_ch_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j])) * shape_mu_phi_ch[i];
                           //  term iv
                           mat += lambda_phi * (grad_shape_phi_ch_theta[j] * grad_shape_mu_phi_ch[i])
@@ -1424,7 +1424,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           //  term i
                           mat += shape_mu_psi_ac[j] * shape_mu_psi_ac[i];
                           //  term ii
-                          mat += ( -( (r_prime_prime_psi_ac_ts * r_psi_ac_ts * shape_psi_ac_theta[j]
+                          mat += ( -( (r_prime_prime_psi_ac_ts * r_phi_ch_ts * shape_psi_ac_theta[j]
                                        + r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j])
                                       * latent_heat * (1. - temperature_ts/melting_t))
                                    + r_prime_psi_ac_ts * r_phi_ch_ts * latent_heat/melting_t * shape_temperature_theta[j]
@@ -1539,7 +1539,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
                   //  term ii
                   rhs += (mobility_phi * (grad_mu_phi_ch_star[q] * grad_mu_phi_ch_star[q])
-                          + mobility_psi * (grad_mu_psi_ac_star[q] * grad_mu_psi_ac_star[q])
+                          + mobility_psi * (mu_psi_ac_star[q] * mu_psi_ac_star[q])
                           + eta_ts * scalar_product(e_ts, grad_vel_ts)) * shape_temperature[i];
                   //  term iii
                   rhs += - thermal_conductivity * grad_temperature_ts * grad_shape_temperature[i];
