@@ -1070,9 +1070,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
     std::vector<Tensor<1,dim>>  grad_psi_ac_star(n_q_points);
     std::vector<Tensor<1,dim>>  grad_psi_ac_n(n_q_points);
     std::vector<Tensor<1,dim>>  grad_mu_phi_ch_star(n_q_points);
-    std::vector<Tensor<1,dim>>  grad_mu_phi_ch_n(n_q_points);
     std::vector<Tensor<1,dim>>  grad_mu_psi_ac_star(n_q_points);
-    std::vector<Tensor<1,dim>>  grad_mu_psi_ac_n(n_q_points);
 
     std::vector<Tensor<1,dim>>  vel_star(n_q_points);
     std::vector<Tensor<1,dim>>  vel_n(n_q_points);
@@ -1158,9 +1156,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
             fe_values[extractors.mu_phi_ch].get_function_values(current_solution, mu_phi_ch_star);
             fe_values[extractors.mu_phi_ch].get_function_gradients(current_solution, grad_mu_phi_ch_star);
-            fe_values[extractors.mu_phi_ch].get_function_gradients(old_solution, grad_mu_phi_ch_n);
 
-            fe_values[extractors.mu_psi_ac].get_function_gradients(old_solution, grad_mu_psi_ac_n);
             fe_values[extractors.mu_psi_ac].get_function_gradients(current_solution, grad_mu_psi_ac_star);
 
             fe_values[extractors.velocities].get_function_values(current_solution, vel_star);
@@ -1293,7 +1289,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const Tensor<2,dim> gamma_ts = lambda_phi * outer_product(grad_phi_ch_ts, grad_phi_ch_ts)
                   + r_phi_ch_ts * lambda_psi * outer_product(grad_psi_ac_ts, grad_psi_ac_ts);
 
-              const Tensor<1,dim> D_vel_Dt_ts = (vel_star[q] - vel_n[q])/present_timestep + vel_bar * grad_vel_ts
+              const Tensor<1,dim> D_vel_Dt_ts = (vel_star[q] - vel_n[q])/present_timestep +  grad_vel_ts * vel_bar
                   + 0.5 * div_vel_bar * vel_ts;
 
               const double D_temperature_Dt_ts = (temperature_star[q] - temperature_n[q])/present_timestep + vel_ts * grad_temperature_ts;
@@ -1372,7 +1368,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                       + eta_partial_psi_ac_ts * shape_psi_ac_theta[k];
 
                   shape_e_theta[k] = theta * (grad_shape_vel[k] + transpose(grad_shape_vel[k])
-                                              + 2./3. * shape_div_vel[k] * id_tensor);
+                                              - 2./3. * shape_div_vel[k] * id_tensor);
 
                   const Tensor<2,dim> grad_phi_ch_ts_grad_shape_phi_ch_theta = outer_product(grad_phi_ch_ts, grad_shape_phi_ch_theta[k]);
                   const Tensor<2,dim> grad_psi_ac_ts_grad_shape_psi_ac_theta = outer_product(grad_psi_ac_ts, grad_shape_psi_ac_theta[k]);
@@ -1405,7 +1401,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           //  term iii
                           mat += (-(lambda_phi * w_prime_prime_phi_ch_ts
                                     + lambda_psi * r_prime_prime_phi_ch_ts * w3_reuse_term2) * shape_phi_ch_theta[j]
-                                  + lambda_psi * r_prime_phi_ch_ts * (w_prime_psi_ac_ts * shape_psi_ac_theta[j] + grad_psi_ac_ts * grad_shape_psi_ac_theta[j])
+                                  - lambda_psi * r_prime_phi_ch_ts * (w_prime_psi_ac_ts * shape_psi_ac_theta[j] + grad_psi_ac_ts * grad_shape_psi_ac_theta[j])
                                   - (shape_pressure[j] * inv_rho_partial_phi_ch_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j])) * shape_mu_phi_ch[i];
                           //  term iv
                           mat += lambda_phi * (grad_shape_phi_ch_theta[j] * grad_shape_mu_phi_ch[i])
@@ -1444,7 +1440,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
                           // w6
                           mat += (shape_rho_theta[j] * D_vel_Dt_ts
-                                  + rho_ts * (shape_vel[j]/present_timestep + vel_bar * grad_shape_vel[j] * theta
+                                  + rho_ts * (shape_vel[j]/present_timestep + grad_shape_vel[j] * vel_bar * theta
                                               + 0.5 * div_vel_bar * shape_vel_theta[j])) * shape_vel[i]
                               -  shape_pressure[j] * shape_div_vel[i]
                               +  scalar_product(shape_eta_theta[j] * e_ts + eta_ts * shape_e_theta[j], grad_shape_vel[i])
@@ -1462,11 +1458,11 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                   +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
                                                       + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
                           //  term ii
-                          mat +=(-2. * ( mobility_phi * grad_mu_phi_ch_star[q] * grad_shape_mu_phi_ch[j]
+                          mat +=(-2. * ( mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_mu_phi_ch[j])
                                          + mobility_psi * mu_psi_ac_star[q] * shape_mu_psi_ac[j])
                                  -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts)
                                  -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts)
-                                 - eta_ts * scalar_product(e_ts, grad_shape_vel[j] * theta)) * shape_temperature[i];
+                                 - eta_ts * scalar_product(e_ts, grad_shape_vel[j]) * theta) * shape_temperature[i];
                           //  term iii
                           mat += thermal_conductivity * grad_shape_temperature_theta[j] * grad_shape_temperature[i];
                           //  term iv
