@@ -614,7 +614,7 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , latent_heat(1.)
     , melting_t(1.)
     , thermal_conductivity(1.)
-    , initial_temperature(1)
+    , initial_temperature(0.9)
     , mapping(1)
 {
 
@@ -1157,6 +1157,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             fe_values[extractors.mu_phi_ch].get_function_values(current_solution, mu_phi_ch_star);
             fe_values[extractors.mu_phi_ch].get_function_gradients(current_solution, grad_mu_phi_ch_star);
 
+            fe_values[extractors.mu_psi_ac].get_function_values(current_solution, mu_psi_ac_star);
             fe_values[extractors.mu_psi_ac].get_function_gradients(current_solution, grad_mu_psi_ac_star);
 
             fe_values[extractors.velocities].get_function_values(current_solution, vel_star);
@@ -1607,8 +1608,9 @@ void StokesProblem<dim>::newton_iteration()
 
       residual = system_rhs.l2_norm();
       pcout << "k= " << k << "  residual = " << residual <<  std::endl;
-
     }
+  locally_relevant_solution = current_solution;
+
 
 }
 
@@ -1618,9 +1620,11 @@ StokesProblem<dim>::map_dofs_to_component(
   const DoFHandler<dim> &    dof,
   std::vector<unsigned int> &global_index_to_component)
 {
+  global_index_to_component.resize(dof_handler.n_dofs(), numbers::invalid_unsigned_int);
   std::vector<types::global_dof_index> local_dof_indices;
   // store the components of each global index.
   for (const auto &cell : dof.active_cell_iterators())
+    if(cell->is_locally_owned())
     {
       local_dof_indices.resize(cell->get_fe().dofs_per_cell);
       cell->get_dof_indices(local_dof_indices);
@@ -1773,7 +1777,6 @@ void StokesProblem<dim>::run()
 
     unsigned int step_number = 0;
     double runtime           = 0.;
-    present_timestep = 0.001;
 
     const unsigned int max_step_number = 10;
     const unsigned int output_interval = 1;
