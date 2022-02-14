@@ -1759,8 +1759,9 @@ void StokesProblem<dim>::output_results(const unsigned int cycle) const
 
     data_out.build_patches();
 
+    // have to create the directory output
     data_out.write_vtu_with_pvtu_record(
-        "./", "solution", cycle, mpi_communicator, 2);
+        "./output/", "solution", cycle, mpi_communicator, 5, 4);
 }
 
 
