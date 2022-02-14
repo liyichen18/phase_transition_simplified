@@ -605,12 +605,12 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , inv_density_s(1./density_s)
     , inv_density_l(1./density_l)
     , inv_density_g(1./density_g)
-    , present_timestep(0.001), old_timestep(present_timestep)
+    , present_timestep(0.0001), old_timestep(present_timestep)
     , cl(1.), cs(1.), cg(1.)
-    , eta_l(1.), eta_s(1.), eta_g(1.)
-    , surface_tension(0.01)
-    , lambda_phi(0.01), lambda_psi(3.*std::sqrt(2.) * surface_tension * eps * inv_density_l)/*which density should be used?*/
-    , mobility_phi(1e-4), mobility_psi(1e-4)
+    , eta_l(1.), eta_s(100.), eta_g(0.01)
+    , surface_tension(1)
+    , lambda_phi(1.), lambda_psi(3.*std::sqrt(2.) * surface_tension * eps * inv_density_l)/*which density should be used?*/
+    , mobility_phi(1e-4), mobility_psi(1e-3)
     , latent_heat(1.)
     , melting_t(1.)
     , thermal_conductivity(1.)
@@ -1583,7 +1583,7 @@ void StokesProblem<dim>::newton_iteration()
   PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
 #else
   TrilinosWrappers::SolverDirect::AdditionalData data;
-  data.solver_type = "Amesos_Lapack";
+  // data.solver_type = "Amesos_Lapack";
   SolverControl                  solver_control(1000, 1e-10);
   TrilinosWrappers::SolverDirect solver(solver_control, data);
 #endif
@@ -1778,8 +1778,8 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number = 10;
-    const unsigned int output_interval = 1;
+    const unsigned int max_step_number = 100;
+    const unsigned int output_interval = 5;
 
     make_grid();
 
