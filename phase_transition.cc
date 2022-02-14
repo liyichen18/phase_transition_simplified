@@ -1595,7 +1595,10 @@ void StokesProblem<dim>::newton_iteration()
       if (residual < 1.e-6 * hmin)
         break;
       assemble_system(assemble_matrix);
-      solver.solve(system_matrix, newton_update, system_rhs);
+      {
+        TimerOutput::Scope t(computing_timer, "Direct Solve");
+        solver.solve(system_matrix, newton_update, system_rhs);
+      }
 
       pcout<<" mat norm: "<<system_matrix.frobenius_norm()
           <<" rh2 norm: "<< system_rhs.l2_norm()
