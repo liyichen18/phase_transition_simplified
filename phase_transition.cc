@@ -1553,6 +1553,36 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                 }
               }
 
+# if 1
+            {
+              for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                {
+                  const unsigned int component_i =
+                    fe.system_to_component_index(i).first;
+                  if (component_i != extractors.psi_ac.component &&
+                      component_i != extractors.mu_psi_ac.component)
+                    {
+                      for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                        {
+                          cell_matrix(i, j) = (i == j) ? 1. : 0.;
+                        }
+                      cell_rhs(i) = 0;
+                    }
+                  else
+                    {
+                      for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                        {
+                          const unsigned int component_j =
+                            fe.system_to_component_index(j).first;
+                          if (component_j != extractors.psi_ac.component &&
+                              component_j != extractors.mu_psi_ac.component)
+                            cell_matrix(i, j) = 0.;
+                        }
+                    }
+                }
+            }
+# endif            
+
             constraints_newton_update.distribute_local_to_global(cell_matrix,
                                                                  cell_rhs,
                                                                  local_dof_indices,
