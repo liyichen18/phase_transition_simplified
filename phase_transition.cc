@@ -605,16 +605,16 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , inv_density_s(1./density_s)
     , inv_density_l(1./density_l)
     , inv_density_g(1./density_g)
-    , present_timestep(0.0001), old_timestep(present_timestep)
+    , present_timestep(5e-2), old_timestep(present_timestep)
     , cl(1.), cs(1.), cg(1.)
     , eta_l(1.), eta_s(100.), eta_g(0.01)
-    , surface_tension(1)
+    , surface_tension(0.1)
     , lambda_phi(1.), lambda_psi(3.*std::sqrt(2.) * surface_tension * eps * inv_density_l)/*which density should be used?*/
-    , mobility_phi(1e-4), mobility_psi(1e-3)
+    , mobility_phi(1e-4), mobility_psi(1e0)
     , latent_heat(1.)
     , melting_t(1.)
     , thermal_conductivity(1.)
-    , initial_temperature(0.9)
+    , initial_temperature(0.5)
     , mapping(1)
 {
 
@@ -830,7 +830,8 @@ Table<2, DoFTools::Coupling> StokesProblem<dim>::make_coupling()
       else if (c == component_ids.pressure
                && ((d >= component_ids.velocities && d < component_ids.velocities + dim)
                    || d == component_ids.phi_ch
-                   || d == component_ids.psi_ac))
+                   || d == component_ids.psi_ac
+                   || d == component_ids.pressure))
         coupling[c][d] = DoFTools::always;
       else
         coupling[c][d] = DoFTools::none;
@@ -1813,7 +1814,7 @@ void StokesProblem<dim>::run()
     double runtime           = 0.;
 
     const unsigned int max_step_number = 100;
-    const unsigned int output_interval = 5;
+    const unsigned int output_interval = 10;
 
     make_grid();
 
@@ -1833,14 +1834,16 @@ void StokesProblem<dim>::run()
 
         step_number ++;
         runtime += present_timestep;
-        pcout << "###starting step " << step_number << "  dt=" << present_timestep
-              << "  time=" << runtime << std::endl;
+        pcout << "###starting step " << step_number << "  dt= " << present_timestep
+              << "  time= " << runtime 
+              << " theta= " << theta
+              << std::endl;
 
         old_old_solution = old_solution;          // n-1
         old_solution = locally_relevant_solution; // n
         current_solution = old_solution; // u^*, newton initial guess
 
-        theta = 0.5;
+        theta = 1.0;
 
         newton_iteration();
 
@@ -1849,12 +1852,13 @@ void StokesProblem<dim>::run()
             TimerOutput::Scope t(computing_timer, "output");
             output_results(step_number);
           }
-
+        pcout << std::endl;
+        pcout << std::endl;
       }
     computing_timer.print_summary();
     computing_timer.reset();
 
-    pcout << std::endl;
+
 }
 } // namespace Step55
 
