@@ -1864,7 +1864,7 @@ void StokesProblem<dim>::run()
         old_solution = locally_relevant_solution; // n
         current_solution = old_solution; // u^*, newton initial guess
 
-        theta = 1.0;
+        // theta = 0.5;
 
         newton_iteration();
 
