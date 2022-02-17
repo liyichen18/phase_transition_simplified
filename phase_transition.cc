@@ -467,6 +467,7 @@ private:
     void solve();
     void refine_grid();
     void output_results(const unsigned int cycle) const;
+    void print_variables() const;
 
     std::vector<const FiniteElement<dim> *>
     create_fe_list(const unsigned int velocity_degree);
@@ -617,9 +618,7 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , initial_temperature(0.5)
     , mapping(1)
 {
-
-
-
+  print_variables();
 
 }
 
@@ -1798,7 +1797,29 @@ void StokesProblem<dim>::output_results(const unsigned int cycle) const
         "./output/", "solution", cycle, mpi_communicator, 5, 4);
 }
 
-
+template <int dim>
+void StokesProblem<dim>::print_variables() const 
+{
+  pcout << " eps:                  " << eps << std::endl
+        << " density_s:            " << density_s << std::endl
+        << " density_l:            " << density_l << std::endl
+        << " density_g:            " << density_g << std::endl
+        << " cl:                   " << cl << std::endl
+        << " cs:                   " << cs << std::endl
+        << " cg:                   " << cg << std::endl
+        << " eta_l:                " << eta_l << std::endl
+        << " eta_s:                " << eta_s << std::endl
+        << " eta_g:                " << eta_g << std::endl
+        << " surface_tension:      " << surface_tension << std::endl
+        << " lambda_phi:           " << lambda_phi << std::endl
+        << " lambda_psi:           " << lambda_psi << std::endl
+        << " mobility_phi:         " << mobility_phi << std::endl
+        << " mobility_psi:         " << mobility_psi << std::endl
+        << " latent_heat:          " << latent_heat << std::endl
+        << " melting_t:            " << melting_t << std::endl
+        << " initial_temperature:  " << initial_temperature << std::endl
+        << " thermal_conductivity: " << thermal_conductivity << std::endl;
+}
 
 template <int dim>
 void StokesProblem<dim>::run()
