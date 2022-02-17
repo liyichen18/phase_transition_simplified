@@ -1555,12 +1555,17 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
 # if 1
             {
+              const auto is_not_selected_component = [&](const unsigned int comp) 
+              { return !(comp == extractors.psi_ac.component ||
+                              comp == extractors.mu_psi_ac.component ||
+                              comp == extractors.pressure.component ||
+                              (comp >= extractors.velocities.first_vector_component &&
+                              comp < extractors.velocities.first_vector_component + dim)); };
               for (unsigned int i = 0; i < dofs_per_cell; ++i)
                 {
                   const unsigned int component_i =
                     fe.system_to_component_index(i).first;
-                  if (component_i != extractors.psi_ac.component &&
-                      component_i != extractors.mu_psi_ac.component)
+                  if (is_not_selected_component(component_i))
                     {
                       for (unsigned int j = 0; j < dofs_per_cell; ++j)
                         {
@@ -1574,9 +1579,10 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                         {
                           const unsigned int component_j =
                             fe.system_to_component_index(j).first;
-                          if (component_j != extractors.psi_ac.component &&
-                              component_j != extractors.mu_psi_ac.component)
-                            cell_matrix(i, j) = 0.;
+                          if (is_not_selected_component(component_j))
+                            {
+                              cell_matrix(i, j) = 0.;
+                            }
                         }
                     }
                 }
