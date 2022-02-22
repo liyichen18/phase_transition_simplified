@@ -1507,7 +1507,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                       +  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i];
 
                   // w4
-                  rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_ac_star[q]) * shape_mu_psi_ac[i];
+                  rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_ac_star[q]) * shape_psi_ac[i];
 
                   // w5
                   //  term i
