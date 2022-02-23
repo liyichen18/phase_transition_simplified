@@ -606,16 +606,16 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , inv_density_s(1./density_s)
     , inv_density_l(1./density_l)
     , inv_density_g(1./density_g)
-    , present_timestep(5e-2), old_timestep(present_timestep)
+    , present_timestep(1e-2), old_timestep(present_timestep)
     , cl(1.), cs(1.), cg(1.)
-    , eta_l(1.), eta_s(100.), eta_g(0.01)
+    , eta_l(1.), eta_s(1.), eta_g(1.)
     , surface_tension(0.1)
     , lambda_phi(1.), lambda_psi(3.*std::sqrt(2.) * surface_tension * eps * inv_density_l)/*which density should be used?*/
     , mobility_phi(1e-4), mobility_psi(1e0)
     , latent_heat(1.)
     , melting_t(1.)
     , thermal_conductivity(1.)
-    , initial_temperature(0.5)
+    , initial_temperature(1.5)
     , mapping(1)
 {
   print_variables();
@@ -1555,12 +1555,19 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
 # if 1
             {
-              const auto is_not_selected_component = [&](const unsigned int comp) 
-              { return !(comp == extractors.psi_ac.component ||
-                              comp == extractors.mu_psi_ac.component ||
-                              comp == extractors.pressure.component ||
-                              (comp >= extractors.velocities.first_vector_component &&
-                              comp < extractors.velocities.first_vector_component + dim)); };
+              const auto is_not_selected_component =
+                [&](const unsigned int comp) {
+                  return !(
+                    comp == extractors.psi_ac.component 
+                    || comp == extractors.mu_psi_ac.component 
+                    || comp == extractors.pressure.component 
+                    || (comp >= extractors.velocities.first_vector_component 
+                        && comp < extractors.velocities.first_vector_component + dim) 
+                    || comp == extractors.temperature.component
+                    // || comp == extractors.phi_ch.component
+                    // || comp == extractors.mu_phi_ch.component
+                    );
+                };
               for (unsigned int i = 0; i < dofs_per_cell; ++i)
                 {
                   const unsigned int component_i =
@@ -1796,7 +1803,7 @@ void StokesProblem<dim>::output_results(const unsigned int cycle) const
         subdomain(i) = triangulation.locally_owned_subdomain();
     data_out.add_data_vector(subdomain, "subdomain");
 
-    data_out.build_patches();
+    data_out.build_patches(2);
 
     // have to create the directory output
     data_out.write_vtu_with_pvtu_record(
@@ -1840,7 +1847,7 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number = 100;
+    const unsigned int max_step_number = 200;
     const unsigned int output_interval = 10;
 
     make_grid();
