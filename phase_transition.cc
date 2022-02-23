@@ -1405,10 +1405,10 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                   - lambda_psi * r_prime_phi_ch_ts * (w_prime_psi_ac_ts * shape_psi_ac_theta[j] + grad_psi_ac_ts * grad_shape_psi_ac_theta[j])
                                   - (shape_pressure[j] * inv_rho_partial_phi_ch_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j])) * shape_mu_phi_ch[i];
                           //  term iv
-                          mat += lambda_phi * (grad_shape_phi_ch_theta[j] * grad_shape_mu_phi_ch[i])
-                              +  lambda_phi * shape_rho_theta[j] * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i]
-                              +  lambda_phi * rho_ts * (grad_shape_phi_ch_theta[j] * grad_inv_rho_ts) * shape_mu_phi_ch[i]
-                              +  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi_ch[i];
+                          mat += - lambda_phi * (grad_shape_phi_ch_theta[j] * grad_shape_mu_phi_ch[i])
+                              -  lambda_phi * shape_rho_theta[j] * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i]
+                              -  lambda_phi * rho_ts * (grad_shape_phi_ch_theta[j] * grad_inv_rho_ts) * shape_mu_phi_ch[i]
+                              -  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi_ch[i];
 
                           // todo: add face integral term v
 
@@ -1553,7 +1553,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                 }
               }
 
-# if 1
+# if 0
             {
               const auto is_not_selected_component =
                 [&](const unsigned int comp) {
@@ -1564,8 +1564,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                     || (comp >= extractors.velocities.first_vector_component 
                         && comp < extractors.velocities.first_vector_component + dim) 
                     || comp == extractors.temperature.component
-                    // || comp == extractors.phi_ch.component
-                    // || comp == extractors.mu_phi_ch.component
+                    || comp == extractors.phi_ch.component
+                    || comp == extractors.mu_phi_ch.component
                     );
                 };
               for (unsigned int i = 0; i < dofs_per_cell; ++i)
