@@ -609,13 +609,13 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , present_timestep(1e-2), old_timestep(present_timestep)
     , cl(1.), cs(1.), cg(1.)
     , eta_l(1.), eta_s(1.), eta_g(1.)
-    , surface_tension(0.1)
+    , surface_tension(0.5)
     , lambda_phi(1.), lambda_psi(3.*std::sqrt(2.) * surface_tension * eps * inv_density_l)/*which density should be used?*/
     , mobility_phi(1e-4), mobility_psi(1e0)
     , latent_heat(1.)
     , melting_t(1.)
     , thermal_conductivity(1.)
-    , initial_temperature(1.5)
+    , initial_temperature(0.5)
     , mapping(1)
 {
   print_variables();
@@ -1847,7 +1847,7 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number = 200;
+    const unsigned int max_step_number = 50;
     const unsigned int output_interval = 10;
 
     make_grid();
