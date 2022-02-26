@@ -225,6 +225,51 @@ namespace InlineFunctions
     return  (2.  - 12. * phi + 12. * phi * phi) / (eps*eps);
   }
 
+  inline double
+  compute_lambda_from_surface_tension(const double rho_plus,
+                                      const double rho_minus,
+                                      const double surface_tension,
+                                      const double eps)
+  {
+    // for phi_ac, rho_plus = rho_l, rho_minus = rho_s
+    // for phi_ch, rho_plus = rho_l, rho_minus = rho_g
+    const double diff_rho = rho_minus - rho_plus;
+    const double sum_rho = rho_plus + rho_minus;
+
+    if(std::fabs(diff_rho) < 1e-8)
+      return surface_tension * 3. * numbers::SQRT2 * eps / (sum_rho * 0.5);
+    else
+    {
+      const double tmp = numbers::SQRT2 *(rho_minus * rho_plus)
+      * (diff_rho * sum_rho + 2. * rho_minus * rho_plus + 2. * rho_minus * rho_plus * std::log(rho_plus/rho_minus))
+      / (eps * 2. * diff_rho * diff_rho * diff_rho);
+      Assert(std::fabs(tmp) > 1e-8., ExcMessage("Lambda is negative."));
+      return surface_tension / tmp;
+
+    }
+  }
+
+  inline double
+  compute_surface_tension_from_lambda(const double rho_plus,
+                                      const double rho_minus,
+                                      const double lambda,
+                                      const double eps)
+  {
+    const double diff_rho = rho_minus - rho_plus;
+    const double sum_rho = rho_plus + rho_minus;
+
+    if(std::fabs(diff_rho) < 1e-8)
+      return lambda * (sum_rho * 0.5) / (eps * 3. * numbers::SQRT2);
+    else
+    {
+      const double tmp = numbers::SQRT2 *(rho_minus * rho_plus)
+      * (diff_rho * sum_rho + 2. * rho_minus * rho_plus + 2. * rho_minus * rho_plus * std::log(rho_plus/rho_minus))
+      / (eps * 2. * diff_rho * diff_rho * diff_rho);
+      return tmp * lambda;
+
+    }
+  }  
+
 } //namespace inline funcitons
 
   template <int dim>
@@ -522,7 +567,8 @@ private:
     double present_timestep, old_timestep;
     const double cl,cs,cg;
     const double eta_l,eta_s,eta_g;
-    const double surface_tension;
+    const double surface_tension_phi_ch;
+    const double surface_tension_psi_ac;
     const double lambda_phi, lambda_psi;
     const double mobility_phi, mobility_psi;
     const double latent_heat, melting_t;
@@ -609,8 +655,12 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , present_timestep(1e-2), old_timestep(present_timestep)
     , cl(1.), cs(1.), cg(1.)
     , eta_l(1.), eta_s(1.), eta_g(1.)
-    , surface_tension(0.5)
-    , lambda_phi(1.), lambda_psi(3.*std::sqrt(2.) * surface_tension * eps * inv_density_l)/*which density should be used?*/
+    , surface_tension_phi_ch(0.5)
+    , surface_tension_psi_ac(0.5)
+    , lambda_phi(1.), lambda_psi(InlineFunctions::compute_lambda_from_surface_tension(density_l, 
+                                                                                      density_s, 
+                                                                                      surface_tension_psi_ac, 
+                                                                                      eps))/*which density should be used?*/
     , mobility_phi(1e-4), mobility_psi(1e0)
     , latent_heat(1.)
     , melting_t(1.)
@@ -1551,7 +1601,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
                   cell_rhs(i) += rhs * fe_values.JxW(q);
                 }
-              }
+              } // q loop on a cell
 
 # if 0
             {
@@ -1823,7 +1873,8 @@ void StokesProblem<dim>::print_variables() const
         << " eta_l:                " << eta_l << std::endl
         << " eta_s:                " << eta_s << std::endl
         << " eta_g:                " << eta_g << std::endl
-        << " surface_tension:      " << surface_tension << std::endl
+        << " surface_tension_ac:   " << surface_tension_psi_ac << std::endl
+        << " surface_tension_ch:   " << surface_tension_phi_ch << std::endl
         << " lambda_phi:           " << lambda_phi << std::endl
         << " lambda_psi:           " << lambda_psi << std::endl
         << " mobility_phi:         " << mobility_phi << std::endl
