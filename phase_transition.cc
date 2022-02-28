@@ -55,6 +55,8 @@ using namespace dealii::LinearAlgebraTrilinos;
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/manifold_lib.h>
+#include <deal.II/grid/grid_in.h>
+#include <deal.II/grid/grid_out.h>
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_renumbering.h>
@@ -271,6 +273,37 @@ namespace InlineFunctions
   }  
 
 } //namespace inline funcitons
+
+
+  template <int dim>
+  void
+  print_mesh_info(const Triangulation<dim> &triangulation)
+  {
+    ConditionalOStream pcout(
+      std::cout, (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0));
+    pcout << "Mesh info:" << std::endl
+              << " dimension: " << dim << std::endl
+              << " no. of cells: " << Utilities::MPI::sum(triangulation.n_active_cells(), MPI_COMM_WORLD)
+              << std::endl;
+
+    {
+      std::map<types::boundary_id, unsigned int> boundary_count;
+      for (const auto &face : triangulation.active_face_iterators())
+        if (face->at_boundary())
+          boundary_count[face->boundary_id()]++;
+      pcout << " boundary indicators: ";
+      for (const std::pair<const types::boundary_id, unsigned int> &pair :
+           boundary_count)
+        {
+          pcout << pair.first << "(" << Utilities::MPI::sum(pair.second, MPI_COMM_WORLD) << " times) ";
+        }
+      pcout << std::endl;
+    }
+    // std::ofstream out(filename);
+    // GridOut       grid_out;
+    // grid_out.write_vtu(triangulation, out);
+    // pcout << " written to " << filename << std::endl << std::endl;
+  }
 
   template <int dim>
   struct ComponentIndices
