@@ -372,12 +372,19 @@ namespace InitialConditions
 
       virtual void vector_value(const Point<dim> &p,
                                 Vector<double> &  value) const override;
+
+      double get_alpha() const
+      {
+        return alpha;
+      }
+      
   private:
       const double eps;
       const double initial_temperature;
       const double melting_temperature;
       const TestCase test_case;
       const Extractors<dim> extractors;
+      const double alpha = 0.2;
 
   };
 
@@ -429,7 +436,6 @@ namespace InitialConditions
           }
         case TestCase::test2: {
             const double w = 1;
-            const double alpha = 0.2;
             const double d = x - w;
             const double psi = 0.5 * (1. + std::tanh(d/eps1));
 
@@ -723,7 +729,7 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , melting_t(1.)
     , thermal_conductivity(1.)
     , initial_temperature(0.01)
-    , ambient_pressure(-1.)
+    , ambient_pressure(-0.3)
     , mapping(1)
 {
   print_variables();
@@ -756,10 +762,12 @@ void StokesProblem<dim>::make_grid()
         std::vector< unsigned int > repetitions(dim,1); 
         repetitions[0] = 2;
 
+        const bool   colorize = true;
         GridGenerator::subdivided_hyper_rectangle(
-          triangulation, repetitions, p0, p1, true);
-
-        triangulation.refine_global(n_refinement);          
+          triangulation, repetitions, p0, p1, colorize);
+        
+        triangulation.refine_global(n_refinement);
+        print_mesh_info(triangulation);
         break;
       }
     default:
@@ -878,57 +886,105 @@ void StokesProblem<dim>::make_boundary_constraints()
         }
         break;
       }
-    case TestCase::test2: {
+      case TestCase::test2: {
+        const double alpha =
+          InitialConditions::InitialValues<dim>(
+            eps, initial_temperature, melting_t, test_case, extractors)
+            .get_alpha();
         {
-          // x=0, boundary id=0, 1, 
-          // velocity (u,v,w) = 0 both id=0,1
+          // x=0, boundary id=0,
+          // velocity (u,v,w) = 0 at id = 0
           // T = (1-alpha) * TM at x=0, bc id = 0
-          // T = (1+alpha) * TM at x=2, bc id = 1
 
-          const auto zero_function =
-            Functions::ZeroFunction<dim>(fe.n_components());
-          const std::map<types::boundary_id, const Function<dim> *>
-            zero_function_map = {{0, &zero_function}, {1, &zero_function}};
-
-          ComponentMask vel_masked(fe.n_components(), false);
-          for(unsigned int d=0; d<dim; ++d)
-            vel_masked.set(extractors.velocities.first_vector_component + d, true);
+          const types::boundary_id bc_id = 0;
+          ComponentMask            vel_masked(fe.n_components(), false);
+          for (unsigned int d = 0; d < dim; ++d)
+            vel_masked.set(extractors.velocities.first_vector_component + d,
+                           true);
 
           VectorTools::interpolate_boundary_values(mapping,
                                                    dof_handler,
-                                                   zero_function_map,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(
+                                                     fe.n_components()),
                                                    constraints_boundary,
                                                    vel_masked);
 
           VectorTools::interpolate_boundary_values(mapping,
                                                    dof_handler,
-                                                   zero_function_map,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(
+                                                     fe.n_components()),
                                                    constraints_newton_update,
                                                    vel_masked);
 
           // temperature constraints
           ComponentMask temperature_masked(fe.n_components(), false);
           temperature_masked.set(extractors.temperature.component, true);
+          const double t_alpha = (1.0 - alpha) * melting_t;
 
-          const auto initial_temperature_function =
-            InitialConditions::InitialValues<dim>(
-              eps, initial_temperature, melting_t, test_case, extractors);
-          const std::map<types::boundary_id, const Function<dim> *>
-            initial_temperature_function_map = {
-              {0, &initial_temperature_function},
-              {1, &initial_temperature_function}};
-
-          VectorTools::interpolate_boundary_values(mapping,
-                                                   dof_handler,
-                                                   initial_temperature_function_map,
-                                                   constraints_boundary,
-                                                   temperature_masked);
+          VectorTools::interpolate_boundary_values(
+            mapping,
+            dof_handler,
+            bc_id,
+            Functions::ConstantFunction<dim>(t_alpha, fe.n_components()),
+            constraints_boundary,
+            temperature_masked);
 
           VectorTools::interpolate_boundary_values(mapping,
                                                    dof_handler,
-                                                   zero_function_map,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(
+                                                     fe.n_components()),
                                                    constraints_newton_update,
-                                                   temperature_masked);                                                   
+                                                   temperature_masked);
+        }
+
+        {
+          // x=2, boundary id= 1, 
+          // v = 0 at id = 1
+          // T = (1+alpha) * TM at x=2, bc id = 1
+          const types::boundary_id bc_id = 1;
+          ComponentMask            vel_v_masked(fe.n_components(), false);
+            vel_v_masked.set(extractors.velocities.first_vector_component + 1,
+                           true);
+
+          VectorTools::interpolate_boundary_values(mapping,
+                                                   dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(
+                                                     fe.n_components()),
+                                                   constraints_boundary,
+                                                   vel_v_masked);
+
+          VectorTools::interpolate_boundary_values(mapping,
+                                                   dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(
+                                                     fe.n_components()),
+                                                   constraints_newton_update,
+                                                   vel_v_masked);
+
+          // temperature constraints
+          ComponentMask temperature_masked(fe.n_components(), false);
+          temperature_masked.set(extractors.temperature.component, true);
+          const double t_alpha = (1.0 + alpha) * melting_t;
+
+          VectorTools::interpolate_boundary_values(
+            mapping,
+            dof_handler,
+            bc_id,
+            Functions::ConstantFunction<dim>(t_alpha, fe.n_components()),
+            constraints_boundary,
+            temperature_masked);
+
+          VectorTools::interpolate_boundary_values(mapping,
+                                                   dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(
+                                                     fe.n_components()),
+                                                   constraints_newton_update,
+                                                   temperature_masked);          
         }
 
         {
@@ -954,9 +1010,6 @@ void StokesProblem<dim>::make_boundary_constraints()
                                                    constraints_newton_update,
                                                    vel_v_masked);
         }
-
-
-
         break;
       }
     default:
@@ -1752,22 +1805,24 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             // face loop
             if (test_case == TestCase::test2)
               {
-                for (unsigned int face_no : cell->face_indices())
-                  if (cell->at_boundary(face_no))
-                    if (cell->face(face_no)->boundary_id() == 1)
+                for (const auto face_no : cell->face_indices())
+                  {
+                    if (cell->face(face_no)->at_boundary() &&
+                        cell->face(face_no)->boundary_id() == 1)
                       {
                         fe_face_values.reinit(cell, face_no);
                         for (unsigned int q = 0; q < n_face_q_points; ++q)
                           for (unsigned int i = 0; i < dofs_per_cell; ++i)
                             {
                               cell_rhs(i) +=
-                                - fe_face_values[extractors.velocities].value(i, q) 
-                                * fe_face_values.normal_vector(q) 
-                                * ambient_pressure * fe_values.JxW(q);
+                                -fe_face_values[extractors.velocities].value(
+                                  i, q) *
+                                fe_face_values.normal_vector(q) *
+                                ambient_pressure * fe_face_values.JxW(q);
                             }
                       }
-              } // if
-
+                  }
+              } // test case
 # if 0
             {
               const auto is_not_selected_component =
@@ -2047,7 +2102,9 @@ void StokesProblem<dim>::print_variables() const
         << " latent_heat:          " << latent_heat << std::endl
         << " melting_t:            " << melting_t << std::endl
         << " initial_temperature:  " << initial_temperature << std::endl
-        << " thermal_conductivity: " << thermal_conductivity << std::endl;
+        << " thermal_conductivity: " << thermal_conductivity << std::endl
+        << " ambient_pressure:     " << ambient_pressure << std::endl;
+
 }
 
 template <int dim>
@@ -2063,7 +2120,7 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number = 2000;
+    const unsigned int max_step_number = 4000;
     const unsigned int output_interval = 10;
 
     make_grid();
