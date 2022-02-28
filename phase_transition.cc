@@ -240,9 +240,9 @@ namespace InlineFunctions
       return surface_tension * 3. * numbers::SQRT2 * eps / (sum_rho * 0.5);
     else
     {
-      const double tmp = numbers::SQRT2 *(rho_minus * rho_plus)
-      * (diff_rho * sum_rho + 2. * rho_minus * rho_plus + 2. * rho_minus * rho_plus * std::log(rho_plus/rho_minus))
-      / (eps * 2. * diff_rho * diff_rho * diff_rho);
+      const double tmp = (rho_minus * rho_plus)
+      * (diff_rho * sum_rho + 2. * rho_minus * rho_plus * std::log(rho_plus/rho_minus))
+      / (eps * numbers::SQRT2 * diff_rho * diff_rho * diff_rho);
       Assert(std::fabs(tmp) > 1e-8, ExcMessage("Lambda is negative."));
       return surface_tension / tmp;
 
@@ -262,9 +262,9 @@ namespace InlineFunctions
       return lambda * (sum_rho * 0.5) / (eps * 3. * numbers::SQRT2);
     else
     {
-      const double tmp = numbers::SQRT2 *(rho_minus * rho_plus)
-      * (diff_rho * sum_rho + 2. * rho_minus * rho_plus + 2. * rho_minus * rho_plus * std::log(rho_plus/rho_minus))
-      / (eps * 2. * diff_rho * diff_rho * diff_rho);
+      const double tmp = (rho_minus * rho_plus)
+      * (diff_rho * sum_rho + 2. * rho_minus * rho_plus * std::log(rho_plus/rho_minus))
+      / (eps * numbers::SQRT2 * diff_rho * diff_rho * diff_rho);
       return tmp * lambda;
 
     }
