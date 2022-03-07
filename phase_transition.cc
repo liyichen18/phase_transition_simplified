@@ -729,7 +729,7 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , melting_t(1.)
     , thermal_conductivity(1.)
     , initial_temperature(0.01)
-    , ambient_pressure(-0.3)
+    , ambient_pressure(0.1)
     , mapping(1)
 {
   print_variables();
@@ -2120,8 +2120,8 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number = 4000;
-    const unsigned int output_interval = 10;
+    const unsigned int max_step_number = 2000;
+    const unsigned int output_interval = 100;
 
     make_grid();
 
