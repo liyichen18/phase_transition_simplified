@@ -26,6 +26,7 @@
 
 //#define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
+#define USE_AXISYMMETRY // axisymmetric implementation
 
 namespace LA
 {
@@ -1422,9 +1423,18 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             fe_values[extractors.temperature].get_function_gradients(old_solution, grad_temperature_n);
 
             fe_values[extractors.pressure].get_function_values(current_solution, pressure_star);
+#ifdef USE_AXISYMMETRY
+            const auto &quadrature_points = fe_values.get_quadrature_points();
+#endif
 
             for (unsigned int q = 0; q < n_q_points; ++q)
             {
+              double jxwq = fe_values.JxW(q);
+#ifdef USE_AXISYMMETRY
+              jxwq *= quadrature_points[q][0];
+              const double one_over_r = 1.0 / quadrature_points[q][0];
+              
+#endif              
               // ts: theta star
               const double c1           = 1.-theta;
               const double phi_ch_ts    = theta * phi_ch_star[q] + c1 * phi_ch_n[q];
@@ -1637,7 +1647,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
                           // w1,2
                           mat = shape_h_ts[j] * shape_phi_ch[i] + mobility_phi * grad_shape_mu_phi_ch[j] * grad_shape_phi_ch[i];
-#if 1
+
                           // w3
                           //  term i
                           mat += shape_mu_phi_ch[j] * shape_mu_phi_ch[i];
@@ -1733,8 +1743,19 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                               *  temperature_ts * log_t_ts_tm * shape_temperature[i]
                               +  (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
                               *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
+#ifdef USE_AXISYMMETRY        
+                          // axi-2
+                          mat += + 0.5 * vel_bar[0] * one_over_r * ((shape_rho_theta[j] * vel_ts 
+                                                                      + rho_ts * shape_vel_theta[j]) * shape_vel[i])
+                                 - (shape_pressure[j] * shape_vel[i][0] * one_over_r)
+                                 - 2./3. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
+                                                      * (shape_div_vel[i] + shape_vel[i][0] * one_over_r)
+                                 + 2. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
+                                   * shape_vel[i][0] * one_over_r;
+                          // axi-4
+                          mat += - shape_vel_theta[j][0] * one_over_r * shape_pressure[i];
 #endif
-                          cell_matrix(i,j) += mat * fe_values.JxW(q);
+                          cell_matrix(i,j) += mat * jxwq;
 
                         }
                     }
@@ -1796,9 +1817,19 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   // term v
                   rhs += - (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
                       * temperature_ts * log_t_ts_tm * shape_temperature[i];
+#ifdef USE_AXISYMMETRY
+                  // axi-1
+                  rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
+                         + (pressure_star[q] * shape_vel[i][0] * one_over_r)
+                         + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0])
+                         - (eta_ts * 2. * vel_ts[0] * one_over_r * shape_vel[i][0] * one_over_r);
+                  // axi-3
+                  rhs += vel_ts[0] * one_over_r * shape_pressure[i];
+                  
+#endif
 
 
-                  cell_rhs(i) += rhs * fe_values.JxW(q);
+                  cell_rhs(i) += rhs * jxwq;
                 }
               } // q loop on a cell
 
