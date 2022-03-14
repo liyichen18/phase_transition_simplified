@@ -439,7 +439,7 @@ namespace InitialConditions
             const double d = x - w_ac;
             const double psi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double w_ch = 0.8;
+            const double w_ch = 1.;
             const double d_ch = w_ch - x;
             const double phi = 0.5 * (1. + std::tanh(d_ch/eps1));
 
@@ -710,9 +710,9 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
                       TimerOutput::wall_times)
     , component_ids(ComponentIndices<dim>())
     , extractors(ComponentIndices<dim>())
-    , eps(0.1)
+    , eps(0.05)
     , test_case(testcase)
-    , n_refinement(5)
+    , n_refinement(6)
     , density_s(0.9)
     , density_l(1.)
     , density_g(1)
