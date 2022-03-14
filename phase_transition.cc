@@ -435,18 +435,22 @@ namespace InitialConditions
             break;
           }
         case TestCase::test2: {
-            const double w = 1;
-            const double d = x - w;
+            const double w_ac = 0.5;
+            const double d = x - w_ac;
             const double psi = 0.5 * (1. + std::tanh(d/eps1));
+
+            const double w_ch = 0.8;
+            const double d_ch = w_ch - x;
+            const double phi = 0.5 * (1. + std::tanh(d_ch/eps1));
 
             for(unsigned int comp = 0; comp < values.size(); ++comp)
               {
                 if (comp == extractors.psi_ac.component)
                   values(comp) = psi;
                 else if (comp == extractors.temperature.component)
-                  values(comp) = melting_temperature * (1. + alpha * d/w);
+                  values(comp) = melting_temperature * (0.9 + 0.05 * x);
                 else if (comp == extractors.phi_ch.component)
-                  values(comp) = 1.;
+                  values(comp) = phi;
                 else
                   values(comp) = 0;
 
@@ -626,7 +630,7 @@ private:
 
     const double density_s, density_l, density_g;
     const double inv_density_s, inv_density_l, inv_density_g;
-    double present_timestep, old_timestep;
+    double present_timestep, old_timestep, fix_timestep;
     const double cl,cs,cg;
     const double eta_l,eta_s,eta_g;
     const double surface_tension_phi_ch;
@@ -711,25 +715,30 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , n_refinement(5)
     , density_s(0.9)
     , density_l(1.)
-    , density_g(1.)
+    , density_g(1)
     , inv_density_s(1./density_s)
     , inv_density_l(1./density_l)
     , inv_density_g(1./density_g)
-    , present_timestep(5e-2), old_timestep(present_timestep)
+    , present_timestep(5e-3), old_timestep(present_timestep)
+    , fix_timestep(present_timestep)
     , cl(1.), cs(1.), cg(1.)
     , eta_l(1.), eta_s(1.), eta_g(1.)
     , surface_tension_phi_ch(0.5)
     , surface_tension_psi_ac(0.5)
-    , lambda_phi(1.), lambda_psi(InlineFunctions::compute_lambda_from_surface_tension(density_l, 
-                                                                                      density_s, 
-                                                                                      surface_tension_psi_ac, 
-                                                                                      eps))/*which density should be used?*/
+    , lambda_phi(InlineFunctions::compute_lambda_from_surface_tension(density_l,
+                                                                      density_g,
+                                                                      surface_tension_phi_ch,
+                                                                      eps))
+    , lambda_psi(InlineFunctions::compute_lambda_from_surface_tension(density_l, 
+                                                                      density_s, 
+                                                                      surface_tension_psi_ac, 
+                                                                      eps))/*which density should be used?*/
     , mobility_phi(1e-4), mobility_psi(1e0)
     , latent_heat(1.)
     , melting_t(1.)
     , thermal_conductivity(1.)
     , initial_temperature(0.01)
-    , ambient_pressure(-0.3)
+    , ambient_pressure(0.)
     , mapping(1)
 {
   print_variables();
@@ -795,9 +804,8 @@ void StokesProblem<dim>::setup_initial_condition()
                                                                  test_case,
                                                                  extractors),
                            tmp_initial_sol);
-
-
-
+  
+  constraints_boundary.distribute(tmp_initial_sol);
 
   locally_relevant_solution = tmp_initial_sol;
   old_solution = locally_relevant_solution;
@@ -887,10 +895,10 @@ void StokesProblem<dim>::make_boundary_constraints()
         break;
       }
       case TestCase::test2: {
-        const double alpha =
-          InitialConditions::InitialValues<dim>(
-            eps, initial_temperature, melting_t, test_case, extractors)
-            .get_alpha();
+        // const double alpha =
+        //   InitialConditions::InitialValues<dim>(
+        //     eps, initial_temperature, melting_t, test_case, extractors)
+        //     .get_alpha();
         {
           // x=0, boundary id=0,
           // velocity (u,v,w) = 0 at id = 0
@@ -921,7 +929,7 @@ void StokesProblem<dim>::make_boundary_constraints()
           // temperature constraints
           ComponentMask temperature_masked(fe.n_components(), false);
           temperature_masked.set(extractors.temperature.component, true);
-          const double t_alpha = (1.0 - alpha) * melting_t;
+          const double t_alpha = 0.9 * melting_t;
 
           VectorTools::interpolate_boundary_values(
             mapping,
@@ -968,7 +976,7 @@ void StokesProblem<dim>::make_boundary_constraints()
           // temperature constraints
           ComponentMask temperature_masked(fe.n_components(), false);
           temperature_masked.set(extractors.temperature.component, true);
-          const double t_alpha = (1.0 + alpha) * melting_t;
+          const double t_alpha = melting_t;
 
           VectorTools::interpolate_boundary_values(
             mapping,
@@ -1802,27 +1810,27 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                 }
               } // q loop on a cell
 
-            // face loop
-            if (test_case == TestCase::test2)
-              {
-                for (const auto face_no : cell->face_indices())
-                  {
-                    if (cell->face(face_no)->at_boundary() &&
-                        cell->face(face_no)->boundary_id() == 1)
-                      {
-                        fe_face_values.reinit(cell, face_no);
-                        for (unsigned int q = 0; q < n_face_q_points; ++q)
-                          for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                            {
-                              cell_rhs(i) +=
-                                -fe_face_values[extractors.velocities].value(
-                                  i, q) *
-                                fe_face_values.normal_vector(q) *
-                                ambient_pressure * fe_face_values.JxW(q);
-                            }
-                      }
-                  }
-              } // test case
+            // // face loop
+            // if (test_case == TestCase::test2)
+            //   {
+            //     for (const auto face_no : cell->face_indices())
+            //       {
+            //         if (cell->face(face_no)->at_boundary() &&
+            //             cell->face(face_no)->boundary_id() == 1)
+            //           {
+            //             fe_face_values.reinit(cell, face_no);
+            //             for (unsigned int q = 0; q < n_face_q_points; ++q)
+            //               for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            //                 {
+            //                   cell_rhs(i) +=
+            //                     -fe_face_values[extractors.velocities].value(
+            //                       i, q) *
+            //                     fe_face_values.normal_vector(q) *
+            //                     ambient_pressure * fe_face_values.JxW(q);
+            //                 }
+            //           }
+            //       }
+            //   } // test case
 # if 0
             {
               const auto is_not_selected_component =
@@ -2077,7 +2085,7 @@ void StokesProblem<dim>::output_results(const unsigned int cycle) const
 
     // have to create the directory output
     data_out.write_vtu_with_pvtu_record(
-        "./output/", "solution", cycle, mpi_communicator, 5, 4);
+        "./output/", "solution", cycle, mpi_communicator, 5, 1);
 }
 
 template <int dim>
@@ -2138,6 +2146,7 @@ void StokesProblem<dim>::run()
     while (step_number < max_step_number)
       {
         old_timestep     = present_timestep;
+        present_timestep = std::min(fix_timestep, (1e-4) * std::pow(1.05, step_number));                
 
         step_number ++;
         runtime += present_timestep;
