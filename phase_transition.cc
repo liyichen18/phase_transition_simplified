@@ -14,7 +14,7 @@
  * ---------------------------------------------------------------------
 
  *
- * Author: Timo Heister, Clemson University, 2016
+ * Author: Jiaqi Zhang, Clemson University, 2022
  */
 
 #include <deal.II/base/quadrature_lib.h>
@@ -26,6 +26,7 @@
 
 //#define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
+#define USE_AXISYMMETRY // axisymmetric implementation
 
 namespace LA
 {
@@ -86,9 +87,10 @@ using namespace dealii;
   enum class TestCase
   {
     test1,
-    test2
+    test2,
+    test3
   };
-  static const char *enum_str[] = {"test1", "test2"};
+  static const char *enum_str[] = {"test1", "test2", "test3"};
 
 namespace InlineFunctions
 {
@@ -133,6 +135,12 @@ namespace InlineFunctions
   {
     return  std::sin(numbers::PI * phi) * 0.5 * numbers::PI;
   }
+
+  inline
+  double q_prime_prime(const double phi)
+  {
+    return  std::cos(numbers::PI * phi) * 0.5 * numbers::PI * numbers::PI;
+  }  
 
   // interpolation functions for 1/rho, c
   inline
@@ -642,9 +650,11 @@ private:
 
     double hmin;
 
+    const unsigned int wall_bc_id = 11;
 
-
-
+    const double static_contact_angle; // theta_s
+    const double one_over_wall_relaxation_gamma;
+    const Tensor<1,dim> wall_velocity;
 };
 
 
@@ -731,6 +741,9 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , initial_temperature(0.01)
     , ambient_pressure(0.1)
     , mapping(1)
+    , static_contact_angle(numbers::PI / 3.)
+    , one_over_wall_relaxation_gamma(0.001)
+    , wall_velocity(Tensor<1,dim>())
 {
   print_variables();
 
@@ -1296,7 +1309,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
     FEFaceValues<dim> fe_face_values(fe,
                                  face_quadrature_formula,
                                  update_values | update_quadrature_points |
-                                  update_normal_vectors | update_JxW_values);
+                                  update_normal_vectors | update_JxW_values |
+                                  update_gradients);
 
     const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
     const unsigned int n_q_points    = quadrature_formula.size();
@@ -1422,9 +1436,18 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             fe_values[extractors.temperature].get_function_gradients(old_solution, grad_temperature_n);
 
             fe_values[extractors.pressure].get_function_values(current_solution, pressure_star);
+#ifdef USE_AXISYMMETRY
+            const auto &quadrature_points = fe_values.get_quadrature_points();
+#endif
 
             for (unsigned int q = 0; q < n_q_points; ++q)
             {
+              double jxwq = fe_values.JxW(q);
+#ifdef USE_AXISYMMETRY
+              jxwq *= quadrature_points[q][0];
+              const double one_over_r = 1.0 / quadrature_points[q][0];
+              
+#endif              
               // ts: theta star
               const double c1           = 1.-theta;
               const double phi_ch_ts    = theta * phi_ch_star[q] + c1 * phi_ch_n[q];
@@ -1637,7 +1660,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
                           // w1,2
                           mat = shape_h_ts[j] * shape_phi_ch[i] + mobility_phi * grad_shape_mu_phi_ch[j] * grad_shape_phi_ch[i];
-#if 1
+
                           // w3
                           //  term i
                           mat += shape_mu_phi_ch[j] * shape_mu_phi_ch[i];
@@ -1733,8 +1756,19 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                               *  temperature_ts * log_t_ts_tm * shape_temperature[i]
                               +  (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
                               *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
+#ifdef USE_AXISYMMETRY        
+                          // axi-2
+                          mat += + 0.5 * vel_bar[0] * one_over_r * ((shape_rho_theta[j] * vel_ts 
+                                                                      + rho_ts * shape_vel_theta[j]) * shape_vel[i])
+                                 - (shape_pressure[j] * shape_vel[i][0] * one_over_r)
+                                 - 2./3. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
+                                                      * (shape_div_vel[i] + shape_vel[i][0] * one_over_r)
+                                 + 2. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
+                                   * shape_vel[i][0] * one_over_r;
+                          // axi-4
+                          mat += - shape_vel_theta[j][0] * one_over_r * shape_pressure[i];
 #endif
-                          cell_matrix(i,j) += mat * fe_values.JxW(q);
+                          cell_matrix(i,j) += mat * jxwq;
 
                         }
                     }
@@ -1796,13 +1830,145 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   // term v
                   rhs += - (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
                       * temperature_ts * log_t_ts_tm * shape_temperature[i];
+#ifdef USE_AXISYMMETRY
+                  // axi-1
+                  rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
+                         + (pressure_star[q] * shape_vel[i][0] * one_over_r)
+                         + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0])
+                         - (eta_ts * 2. * vel_ts[0] * one_over_r * shape_vel[i][0] * one_over_r);
+                  // axi-3
+                  rhs += vel_ts[0] * one_over_r * shape_pressure[i];
+                  
+#endif
 
 
-                  cell_rhs(i) += rhs * fe_values.JxW(q);
+                  cell_rhs(i) += rhs * jxwq;
                 }
               } // q loop on a cell
 
-            // face loop
+            // face loop, assemble moving contact line bc
+            for (const auto face_no : cell->face_indices())
+              {
+                if (cell->face(face_no)->at_boundary() &&
+                    cell->face(face_no)->boundary_id() == wall_bc_id)
+                  {
+                    fe_face_values.reinit(cell, face_no);
+#ifdef USE_AXISYMMETRY
+                    const auto &face_qpoints = fe_face_values.get_quadrature_points();
+#endif                   
+                    std::vector<double> face_phi_ch_star(n_q_points);
+                    fe_face_values[extractors.phi_ch].get_function_values(current_solution, face_phi_ch_star);
+                    std::vector<double> face_phi_ch_n(n_q_points);
+                    fe_face_values[extractors.phi_ch].get_function_values(old_solution, face_phi_ch_n);
+
+                    std::vector<double> face_psi_ac_star(n_q_points);
+                    fe_face_values[extractors.psi_ac].get_function_values(current_solution, face_psi_ac_star);
+                    std::vector<double> face_psi_ac_n(n_q_points);
+                    fe_face_values[extractors.psi_ac].get_function_values(old_solution, face_psi_ac_n);
+
+                    std::vector<Tensor<1,dim> > face_grad_phi_ch_star(n_q_points);
+                    fe_face_values[extractors.phi_ch].get_function_gradients(current_solution, face_grad_phi_ch_star);
+                    std::vector<Tensor<1,dim> > face_grad_phi_ch_n(n_q_points);
+                    fe_face_values[extractors.phi_ch].get_function_gradients(old_solution, face_grad_phi_ch_n);
+
+                    
+                    for (unsigned int q = 0; q < n_face_q_points; ++q)
+                    {
+                      double face_jxwq = fe_face_values.JxW(q);
+#ifdef USE_AXISYMMETRY
+                      face_jxwq *= face_qpoints[q][0];
+#endif
+                      
+                      // ts: theta star
+                      const double c1 = 1. - theta;
+
+                      const double face_phi_ch_ts =
+                        theta * face_phi_ch_star[q] + c1 * face_phi_ch_n[q];
+
+                      const double face_psi_ac_ts =
+                        theta * face_psi_ac_star[q] + c1 * face_psi_ac_n[q];
+
+                      const Tensor<1,dim> face_grad_phi_ch_ts =
+                        theta * face_grad_phi_ch_star[q] + c1 * face_grad_phi_ch_n[q];
+
+                      const double face_inv_rho_ts =
+                        InlineFunctions::f(face_phi_ch_ts,
+                                           face_psi_ac_ts,
+                                           inv_density_l,
+                                           inv_density_s,
+                                           inv_density_g);
+
+                      const double face_inv_rho_partial_phi_ch_ts =
+                        InlineFunctions::f_partial_phi(face_phi_ch_ts,
+                                                       face_psi_ac_ts,
+                                                       inv_density_l,
+                                                       inv_density_s,
+                                                       inv_density_g);
+
+                      const double face_inv_rho_partial_psi_ac_ts =
+                        InlineFunctions::f_partial_psi(face_phi_ch_ts,
+                                                       face_psi_ac_ts,
+                                                       inv_density_l,
+                                                       inv_density_s);
+
+                      const double q_prime_phi_ch_ts = InlineFunctions::q_prime(face_phi_ch_ts);
+                      const double q_prime_prime_phi_ch_ts = InlineFunctions::q_prime_prime(face_phi_ch_ts);
+
+                      std::vector<double> face_shape_phi_ch(dofs_per_cell);
+                      std::vector<double> face_shape_psi_ac(dofs_per_cell);
+                      std::vector<double> face_shape_phi_ch_theta(dofs_per_cell);
+                      std::vector<double> face_shape_psi_ac_theta(dofs_per_cell);
+                      std::vector<double> face_shape_inv_rho_theta(dofs_per_cell);
+                      std::vector<double> face_shape_mu_phi_ch(dofs_per_cell);
+                      std::vector<Tensor<1,dim> > face_grad_shape_phi_ch(dofs_per_cell);
+                      std::vector<Tensor<1,dim> > face_grad_shape_phi_ch_theta(dofs_per_cell);
+
+                      for (unsigned int k = 0; k < dofs_per_cell; ++k)
+                        {
+                          face_shape_phi_ch[k] = fe_face_values[extractors.phi_ch].value(k, q);
+                          face_shape_psi_ac[k] = fe_face_values[extractors.psi_ac].value(k, q);
+
+                          face_shape_phi_ch_theta[k] = face_shape_phi_ch[k] * theta;
+                          face_shape_psi_ac_theta[k] = face_shape_psi_ac[k] * theta;
+
+                          face_shape_inv_rho_theta[k] =
+                            face_inv_rho_partial_phi_ch_ts * face_shape_phi_ch_theta[k]
+                            + face_inv_rho_partial_psi_ac_ts * face_shape_psi_ac_theta[k];
+
+                          face_grad_shape_phi_ch[k] = fe_face_values[extractors.phi_ch].gradient(k, q);
+                          face_grad_shape_phi_ch_theta[k] = face_grad_shape_phi_ch[k] * theta;
+
+                          face_shape_mu_phi_ch[k] = fe_face_values[extractors.mu_phi_ch].value(k, q);
+                        }
+                      for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                        {
+                          for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                            {
+                              cell_matrix(i, j) += (
+                                                      surface_tension_phi_ch * std::cos(static_contact_angle)
+                                                      * face_shape_inv_rho_theta[j] * q_prime_phi_ch_ts
+                                                    + surface_tension_phi_ch * std::cos(static_contact_angle)
+                                                      * face_inv_rho_ts * q_prime_prime_phi_ch_ts * face_shape_phi_ch_theta[j] 
+                                                    - one_over_wall_relaxation_gamma * (face_shape_phi_ch[j]/present_timestep 
+                                                                                           + wall_velocity * face_grad_shape_phi_ch_theta[j])
+                                                    )
+                                                  * face_shape_mu_phi_ch[i] * face_jxwq;
+                                                    
+                            }
+
+                          cell_rhs(i) += ( 
+                                           - face_inv_rho_ts * surface_tension_phi_ch * std::cos(static_contact_angle)
+                                             * q_prime_phi_ch_ts 
+                                           + one_over_wall_relaxation_gamma * (face_phi_ch_star[q] - face_phi_ch_n[q])/present_timestep
+                                             + wall_velocity * face_grad_phi_ch_ts 
+                                          ) 
+                                        * face_shape_mu_phi_ch[i] * face_jxwq;
+                        }
+                    }
+                  }
+              }            
+
+            // stress boundary condition
             if (test_case == TestCase::test2)
               {
                 for (const auto face_no : cell->face_indices())
