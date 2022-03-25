@@ -24,7 +24,7 @@
 
 #include <deal.II/lac/generic_linear_algebra.h>
 
-//#define FORCE_USE_OF_TRILINOS
+#define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
 #define USE_AXISYMMETRY // axisymmetric implementation
 
@@ -68,6 +68,7 @@ using namespace dealii::LinearAlgebraTrilinos;
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
+#include <deal.II/numerics/solution_transfer.h>
 
 #include <deal.II/base/utilities.h>
 #include <deal.II/base/conditional_ostream.h>
@@ -75,6 +76,7 @@ using namespace dealii::LinearAlgebraTrilinos;
 #include <deal.II/lac/sparsity_tools.h>
 #include <deal.II/distributed/tria.h>
 #include <deal.II/distributed/grid_refinement.h>
+#include <deal.II/distributed/solution_transfer.h>
 
 #include <cmath>
 #include <fstream>
@@ -357,6 +359,118 @@ namespace InlineFunctions
     FEValuesExtractors::Scalar              mu_psi_ac;
   };
 
+
+  /******************************************************************
+    This function labels the interface cells as refine and 
+    non-interface cells as coarsen.
+    1. The refinement is performed only if the mesh size is in [min_h,max_h]
+       AND the level of refinement is in [min_level,max_level].
+    2. The interface is defined as the zero level set of the component-th
+       component of the vector solution. component is in [0,n_component)
+       Apr 1, 2016, Pengtao Yue
+    3. function returns true if a coarsen_and_refine is required and 
+       false is the old mesh is to be kept.
+  *******************************************************************/
+  template <int dim, typename VectorType>
+  bool label_mesh(const DoFHandler<dim>    & dof_handler, 
+                  const FESystem<dim>      & fe,
+                  const VectorType         & solution,
+                  //minimum mesh size, defined on the interface
+                  const double             & min_h,
+                  //maximum mesh size, defined in the bulk
+                  const double             & max_h,
+                  //minimum refinement level
+                  const int                & min_level,     
+                  //maximum refinement level                                        
+                  const int                & max_level,     
+                  //component extractor for phase field phi
+                  const Extractors<dim>    &extractors,
+                  const double             &width = 0.16
+                  )
+
+  {
+    const QTrapezoid<dim> quadrature;
+    FEValues<dim> fe_values(fe,quadrature,update_values);
+    const unsigned int n_q_points=quadrature.size();
+    
+    std::vector<double> phi_ch_values(n_q_points);
+    std::vector<double> psi_ac_values(n_q_points);
+    
+    bool refine=false;
+
+    const auto find_max_min_values = [&](const std::vector<double> &values) {
+      double max_value = -std::numeric_limits<double>::max();
+      double min_value = std::numeric_limits<double>::max();
+      for (unsigned int q_point = 0; q_point < values.size(); ++q_point)
+        {
+          max_value = std::max(max_value, values[q_point]);
+          min_value = std::min(min_value, values[q_point]);
+        }
+
+      return std::make_pair(min_value, max_value);
+    };
+
+    const auto is_interface_cell = [&](const double min_value, const double max_value)
+    {
+      return (min_value*max_value<0 || std::abs(max_value - 0.5)<width
+                            || std::abs(min_value - 0.5)<width);
+    };
+
+    for(const auto &dof_cell : dof_handler.active_cell_iterators())
+      if(dof_cell->is_locally_owned())
+        {
+          fe_values.reinit(dof_cell);
+          fe_values[extractors.phi_ch].get_function_values(solution,
+                                                           phi_ch_values);
+          fe_values[extractors.psi_ac].get_function_values(solution,
+                                                           psi_ac_values);
+
+          const auto max_min_phi_ch = find_max_min_values(phi_ch_values);
+          const auto max_min_psi_ac = find_max_min_values(psi_ac_values);
+
+          const double phi_ch_min = max_min_phi_ch.first;
+          const double phi_ch_max = max_min_phi_ch.second;
+          const double psi_ac_min = max_min_psi_ac.first;
+          const double psi_ac_max = max_min_psi_ac.second;
+
+          const int    level = dof_cell->level();
+          const double size  = dof_cell->minimum_vertex_distance();
+
+          if (is_interface_cell(phi_ch_min, phi_ch_max) ||
+              is_interface_cell(psi_ac_min, psi_ac_max))
+            {
+              // This is an interface cell
+              // set_refine_flag() and set_coarsen_flag() can be found in calss
+              // CellAccessor level() is inherited from class TriaAccessorBase
+              if (level < max_level && size > min_h)
+                {
+                  dof_cell->clear_coarsen_flag();
+                  dof_cell->set_refine_flag();
+                  refine = true;
+                }
+            }
+          else
+            {
+              if (level > min_level && size < 0.7 * max_h)
+                {
+                  // coarsening is of lower priority than refining. The mesh
+                  // won't be corsened if the neighbor is already of finer size.
+                  dof_cell->clear_refine_flag();
+                  dof_cell->set_coarsen_flag();
+                }
+              else if (size > 1.5 * max_h)
+                {
+                  dof_cell->clear_coarsen_flag();
+                  dof_cell->set_refine_flag();
+                  refine = true;
+                }
+            }
+        }
+
+    return refine;
+  }    
+    
+
 namespace InitialConditions
 {
 
@@ -559,6 +673,7 @@ public:
     StokesProblem(unsigned int velocity_degree, const TestCase & testcase);
 
     void run();
+    void test_adaptive_refinement();
 
 private:
 #ifdef USE_DIRECT_SOLVER
@@ -655,6 +770,11 @@ private:
     const double static_contact_angle; // theta_s
     const double one_over_wall_relaxation_gamma;
     const Tensor<1,dim> wall_velocity;
+    const bool use_adaptive_refinement;
+
+    const double min_mesh_size;
+    const double max_mesh_size;   
+
 };
 
 
@@ -744,6 +864,9 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , static_contact_angle(numbers::PI / 3.)
     , one_over_wall_relaxation_gamma(0.001)
     , wall_velocity(Tensor<1,dim>())
+    , use_adaptive_refinement(true)
+    , min_mesh_size(0.01)
+    , max_mesh_size(0.5)
 {
   print_variables();
 
@@ -778,15 +901,70 @@ void StokesProblem<dim>::make_grid()
         const bool   colorize = true;
         GridGenerator::subdivided_hyper_rectangle(
           triangulation, repetitions, p0, p1, colorize);
-        
-        triangulation.refine_global(n_refinement);
-        print_mesh_info(triangulation);
+        if(use_adaptive_refinement)
+          triangulation.refine_global(3);
+        else
+          triangulation.refine_global(n_refinement);
         break;
       }
     default:
       Assert(false, ExcNotImplemented("Setting up iniital grid: Please choose the right test case"));
     }
+                                       
+  const unsigned int max_refinement_level = n_refinement;
+  if (use_adaptive_refinement)
+    {
+      for (unsigned int i = 0; i < max_refinement_level; ++i)
+        {
+          // dof_handler is required to apply initial condition
+          dof_handler.distribute_dofs(fe);
 
+          { // make hanging node constraints, used in setting up initial
+            // condition
+            constraints_boundary.clear();
+            DoFTools::make_hanging_node_constraints(dof_handler,
+                                                    constraints_boundary);
+            constraints_boundary.close();
+          }
+
+          // initialize the solution vector
+          locally_relevant_dofs.clear();
+          DoFTools::extract_locally_relevant_dofs(dof_handler,
+                                                  locally_relevant_dofs);
+          locally_relevant_solution.reinit(dof_handler.locally_owned_dofs(),
+                                           locally_relevant_dofs,
+                                           mpi_communicator);
+          setup_initial_condition();
+          
+          if (label_mesh<dim, VectorType>(dof_handler,
+                                          fe,
+                                          locally_relevant_solution,
+                                          min_mesh_size,
+                                          max_mesh_size,
+                                          0,
+                                          max_refinement_level,
+                                          extractors))
+            {
+              triangulation.execute_coarsening_and_refinement();
+
+              pcout << "   Refinement level: " << i << std::endl
+                        << "   Number of active cells: "
+                        << triangulation.n_active_cells() << std::endl
+                        << "   Total number of cells: "
+                        << triangulation.n_cells() << std::endl;
+              const double hmin =
+                GridTools::minimal_cell_diameter(triangulation) /
+                std::sqrt(1. * dim);
+              pcout << "hmin = " << hmin << std::endl;
+            }
+          else
+            {
+              break;
+            }
+        }
+    }
+
+  print_mesh_info(triangulation);
   hmin = GridTools::minimal_cell_diameter(triangulation, mapping)/std::sqrt(dim*1.);
   pcout<<" hmin = "<<hmin<<std::endl;
 }
@@ -809,8 +987,7 @@ void StokesProblem<dim>::setup_initial_condition()
                                                                  extractors),
                            tmp_initial_sol);
 
-
-
+  constraints_boundary.distribute(tmp_initial_sol);
 
   locally_relevant_solution = tmp_initial_sol;
   old_solution = locally_relevant_solution;
@@ -1285,6 +1462,7 @@ template <int dim>
 void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 {
     TimerOutput::Scope t(computing_timer, "assembly");
+    pcout<<" assemble system"<<std::endl;
 
     system_matrix         = 0;
 //    preconditioner_matrix = 0;
@@ -2048,6 +2226,7 @@ template <int dim>
 void StokesProblem<dim>::newton_iteration()
 {
   TimerOutput::Scope t(computing_timer, "Newton");
+  pcout<< "Newton iteration" << std::endl;
 
   // set to 1 for testing
   const unsigned int max_iter = 10;
@@ -2187,9 +2366,62 @@ void StokesProblem<dim>::solve()
 template <int dim>
 void StokesProblem<dim>::refine_grid()
 {
-    TimerOutput::Scope t(computing_timer, "refine");
+  TimerOutput::Scope t(computing_timer, "refine");
+  pcout << "   Refine..." << std::endl;
 
-    triangulation.refine_global();
+  const bool refine_mesh_local =
+    label_mesh<dim, VectorType>(dof_handler,
+                                fe,
+                                locally_relevant_solution,
+                                min_mesh_size,
+                                max_mesh_size,
+                                0,
+                                n_refinement,
+                                extractors);
+
+  const bool refine_mesh = Utilities::MPI::logical_or(refine_mesh_local,
+                             mpi_communicator);
+
+  if(refine_mesh)
+  {
+    pcout<<"Refine mesh..."<<std::endl;
+    parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
+    dof_handler);
+
+    std::vector<const VectorType *> in_solution(2);
+    in_solution[0] = &locally_relevant_solution;
+    in_solution[1] = &old_solution;
+
+    triangulation.prepare_coarsening_and_refinement();
+
+    solution_trans.prepare_for_coarsening_and_refinement(in_solution);
+
+    triangulation.execute_coarsening_and_refinement();
+
+#ifdef USE_DIRECT_SOLVER
+    setup_system();
+#else
+    setup_block_system();
+#endif    
+    
+    VectorType distributed_sol1(system_rhs);
+    VectorType distributed_sol2(system_rhs);
+    std::vector<VectorType *> tmp(2);
+    tmp[0] = &distributed_sol1;
+    tmp[1] = &distributed_sol2;
+    solution_trans.interpolate(tmp);
+
+    constraints_boundary.distribute(distributed_sol1);
+    constraints_boundary.distribute(distributed_sol2);
+
+    locally_relevant_solution = distributed_sol1;
+    old_solution = distributed_sol2;
+  }
+  else
+  {
+    pcout << "No refinement" << std::endl;
+  }
+
 }
 
 
@@ -2269,8 +2501,59 @@ void StokesProblem<dim>::print_variables() const
         << " melting_t:            " << melting_t << std::endl
         << " initial_temperature:  " << initial_temperature << std::endl
         << " thermal_conductivity: " << thermal_conductivity << std::endl
-        << " ambient_pressure:     " << ambient_pressure << std::endl;
+        << " ambient_pressure:     " << ambient_pressure << std::endl
+        << " number of MPI processes: " << Utilities::MPI::n_mpi_processes(mpi_communicator) << std::endl;
 
+}
+
+template <int dim>
+void
+StokesProblem<dim>::test_adaptive_refinement()
+{
+  const bool refine_mesh =
+    label_mesh<dim, VectorType>(dof_handler,
+                                fe,
+                                locally_relevant_solution,
+                                min_mesh_size,
+                                max_mesh_size,
+                                0,
+                                n_refinement,
+                                extractors);
+  if(refine_mesh)                                
+  {
+    pcout << "Refine mesh\n" << std::flush;
+    parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
+      dof_handler);
+
+    std::vector<const VectorType *> in_solution(2);
+    in_solution[0] = &locally_relevant_solution;
+    in_solution[1] = &old_solution;
+
+    triangulation.prepare_coarsening_and_refinement();
+
+    solution_trans.prepare_for_coarsening_and_refinement(in_solution);
+
+    triangulation.execute_coarsening_and_refinement();
+
+#ifdef USE_DIRECT_SOLVER
+    setup_system();
+#else
+    setup_block_system();
+#endif
+
+    VectorType                distributed_sol1(system_rhs);
+    VectorType                distributed_sol2(system_rhs);
+    std::vector<VectorType *> tmp(2);
+    tmp[0] = &distributed_sol1;
+    tmp[1] = &distributed_sol2;
+    solution_trans.interpolate(tmp);
+
+    constraints_boundary.distribute(distributed_sol1);
+    constraints_boundary.distribute(distributed_sol2);
+
+    locally_relevant_solution = distributed_sol1;
+    old_solution              = distributed_sol2;
+  }
 }
 
 template <int dim>
@@ -2301,6 +2584,10 @@ void StokesProblem<dim>::run()
 
     output_results(step_number);
 
+    // test_adaptive_refinement();
+    // output_results(step_number+1);
+    // exit(0);
+
     while (step_number < max_step_number)
       {
         old_timestep     = present_timestep;
@@ -2311,6 +2598,9 @@ void StokesProblem<dim>::run()
               << "  time= " << runtime 
               << " theta= " << theta
               << std::endl;
+
+        if(step_number > 1 && use_adaptive_refinement)
+          refine_grid();
 
         old_old_solution = old_solution;          // n-1
         old_solution = locally_relevant_solution; // n
