@@ -42,6 +42,7 @@ using namespace dealii::LinearAlgebraTrilinos;
 
 #include <deal.II/lac/vector.h>
 #include <deal.II/lac/full_matrix.h>
+#include <deal.II/lac/solver_bicgstab.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/solver_minres.h>
@@ -719,7 +720,7 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , inv_density_s(1./density_s)
     , inv_density_l(1./density_l)
     , inv_density_g(1./density_g)
-    , present_timestep(5e-3), old_timestep(present_timestep)
+    , present_timestep(5e-2), old_timestep(present_timestep)
     , fix_timestep(present_timestep)
     , cl(1.), cs(1.), cg(1.)
     , eta_l(1.), eta_s(1.), eta_g(1.)
@@ -1903,10 +1904,16 @@ void StokesProblem<dim>::newton_iteration()
   SolverControl cn;
   PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
 #else
-  TrilinosWrappers::SolverDirect::AdditionalData data;
-  // data.solver_type = "Amesos_Lapack";
   SolverControl                  solver_control(1000, 1e-10);
-  TrilinosWrappers::SolverDirect solver(solver_control, data);
+
+  // TrilinosWrappers::SolverDirect::AdditionalData data;
+  // // data.solver_type = "Amesos_Lapack";
+  // TrilinosWrappers::SolverDirect solver(solver_control, data);
+
+  TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
+
+  // SolverGMRES<VectorType> solver(solver_control);
+  SolverBicgstab<VectorType> solver(solver_control);  
 #endif
 
   assemble_matrix = true;
@@ -1918,7 +1925,24 @@ void StokesProblem<dim>::newton_iteration()
       assemble_system(assemble_matrix);
       {
         TimerOutput::Scope t(computing_timer, "Direct Solve");
-        solver.solve(system_matrix, newton_update, system_rhs);
+        try
+          {
+            preconditioner.initialize(system_matrix);
+            solver.solve(system_matrix,
+                         newton_update,
+                         system_rhs,
+                         preconditioner);
+
+            pcout << " cg number of iterations: " << solver_control.last_step()
+                  << std::endl;
+          }
+        catch (const std::exception &exc)
+          {
+            pcout << " cg failed, use direct solver: " << std::endl;
+            TrilinosWrappers::SolverDirect::AdditionalData data;
+            TrilinosWrappers::SolverDirect solver(solver_control, data);
+            solver.solve(system_matrix, newton_update, system_rhs);
+          }
       }
 
       pcout<<" mat norm: "<<system_matrix.frobenius_norm()
