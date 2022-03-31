@@ -436,11 +436,11 @@ namespace InitialConditions
             break;
           }
         case TestCase::test2: {
-            const double w_ac = 0.5;
+            const double w_ac = 0.25;
             const double d = x - w_ac;
             const double psi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double w_ch = 1.;
+            const double w_ch = 0.5;
             const double d_ch = w_ch - x;
             const double phi = 0.5 * (1. + std::tanh(d_ch/eps1));
 
@@ -449,7 +449,7 @@ namespace InitialConditions
                 if (comp == extractors.psi_ac.component)
                   values(comp) = psi;
                 else if (comp == extractors.temperature.component)
-                  values(comp) = melting_temperature * (0.9 + 0.05 * x);
+                  values(comp) = melting_temperature * (0.9 + 0.1 * x);
                 else if (comp == extractors.phi_ch.component)
                   values(comp) = phi;
                 else
@@ -720,7 +720,7 @@ StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
     , inv_density_s(1./density_s)
     , inv_density_l(1./density_l)
     , inv_density_g(1./density_g)
-    , present_timestep(5e-2), old_timestep(present_timestep)
+    , present_timestep(2.5e-2), old_timestep(present_timestep)
     , fix_timestep(present_timestep)
     , cl(1.), cs(1.), cg(1.)
     , eta_l(1.), eta_s(1.), eta_g(1.)
@@ -767,16 +767,16 @@ void StokesProblem<dim>::make_grid()
     case TestCase::test2: {
         AssertDimension(dim, 2);
         const Point<dim> p0;
-        const Point<dim> p1 = Point<dim>(2., 1.);
+        const Point<dim> p1 = Point<dim>(1., 1./4.);
 
         std::vector< unsigned int > repetitions(dim,1); 
-        repetitions[0] = 2;
+        repetitions[0] = 4;
 
         const bool   colorize = true;
         GridGenerator::subdivided_hyper_rectangle(
           triangulation, repetitions, p0, p1, colorize);
         
-        triangulation.refine_global(n_refinement);
+        triangulation.refine_global(n_refinement-2);
         print_mesh_info(triangulation);
         break;
       }
