@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-#define USE_AXISYMMETRY // axisymmetric implementation
+// #define USE_AXISYMMETRY // axisymmetric implementation
 
 namespace LA
 {
@@ -46,6 +46,7 @@ using namespace dealii::LinearAlgebraTrilinos;
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/solver_minres.h>
+#include <deal.II/lac/solver_bicgstab.h>
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/dynamic_sparsity_pattern.h>
 
@@ -499,11 +500,22 @@ namespace InitialConditions
       {
         return alpha;
       }
+
+      double get_boundary_temperature() const
+      {
+        return boundary_temperature;
+      }
+
+      void set_boundary_temperature(const double t)
+      {
+        boundary_temperature = t;
+      }
       
   private:
       const double eps;
       const double initial_temperature;
       const double melting_temperature;
+      double boundary_temperature = -1.0;
       const TestCase test_case;
       const Extractors<dim> extractors;
       const double alpha = 0.2;
@@ -574,6 +586,51 @@ namespace InitialConditions
 
               }          
 
+            break;
+          }
+        case TestCase::test3: {
+            Assert(boundary_temperature > 0, ExcMessage("Boundary temperature not set!"));
+            Point<dim> center;
+            const double R = 1.;
+            double r;
+            switch (dim)
+              {
+              case 2: //2D case
+                {
+                  center = Point<dim>(0,0);
+                  r = std::sqrt(x*x + y*y);
+                  break;
+                }
+              case 3: //3D case
+                {
+                  ExcNotImplemented("3D not implemented yet!");
+                  break;
+                }
+              }
+
+            const double d = R - r;
+            const double phi = 0.5 * (1. + std::tanh(d/eps1));
+
+            const double initial_solid_layer = 0.2; // has to below melting temperature
+            const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
+
+            const double temperature_transition_function = psi;//0.5 * (1. + std::tanh((y - initial_solid_layer)/0.02));
+
+            const double initial_t = temperature_transition_function * initial_temperature 
+                                   + (1. - temperature_transition_function) * boundary_temperature;
+
+            for(unsigned int comp = 0; comp < values.size(); ++comp)
+              {
+                if (comp == extractors.psi_ac.component)
+                  values(comp) = psi;
+                else if (comp == extractors.temperature.component)
+                  values(comp) = initial_t;
+                else if (comp == extractors.phi_ch.component)
+                  values(comp) = phi;
+                else
+                  values(comp) = 0;
+
+              }
             break;
           }
         default:
@@ -749,9 +806,9 @@ private:
 
     const double density_s, density_l, density_g;
     const double inv_density_s, inv_density_l, inv_density_g;
-    double present_timestep, old_timestep;
-    const double cl,cs,cg;
-    const double eta_l,eta_s,eta_g;
+    double present_timestep, old_timestep, fix_time_step;
+    const double cl,cs,cg; // heat capacity
+    const double eta_l,eta_s,eta_g;  //viscosity
     const double surface_tension_phi_ch;
     const double surface_tension_psi_ac;
     const double lambda_phi, lambda_psi;
@@ -759,6 +816,7 @@ private:
     const double latent_heat, melting_t;
     const double thermal_conductivity;
     const double initial_temperature; //Ta
+    const double boundary_temperature; 
     const double ambient_pressure;
 
     const MappingQ<dim> mapping;
@@ -815,7 +873,7 @@ StokesProblem<dim>::create_fe_multiplicities()
 }
 
 template <int dim>
-StokesProblem<dim>::StokesProblem(unsigned int velocity_degree,
+StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                                   const TestCase &testcase)
     : velocity_degree(velocity_degree)
     , quadrature_degree(2 * velocity_degree + 4)
@@ -907,6 +965,19 @@ void StokesProblem<dim>::make_grid()
           triangulation.refine_global(n_refinement);
         break;
       }
+    case TestCase::test3: {
+//        If the colorize flag is true,
+//        then the boundary_ids of the boundary faces are assigned,
+//            such that the lower one in x-direction is 0, the upper one is 1.
+//            The indicators for the surfaces in y-direction are 2 and 3,
+//            the ones for z are 4 and 5.
+        const bool   colorize = true;
+        const double width = 2.;
+        GridGenerator::hyper_cube(triangulation, 0., width, colorize);
+        triangulation.refine_global(n_refinement);
+
+        break;
+      }      
     default:
       Assert(false, ExcNotImplemented("Setting up iniital grid: Please choose the right test case"));
     }
@@ -979,12 +1050,29 @@ void StokesProblem<dim>::setup_initial_condition()
   tmp_initial_sol.reinit(block_owned_partitioning, mpi_communicator);
 #endif
 
+  InitialConditions::InitialValues<dim> initial_values(
+    eps, initial_temperature, melting_t, test_case, extractors);
+
+  switch (test_case)
+    {
+    case TestCase::test1: {
+      
+        break;
+      }
+    case TestCase::test2: {
+      
+        break;
+      }
+    case TestCase::test3: {
+        initial_values.set_boundary_temperature(boundary_temperature);
+        break;
+      }
+    default:
+      Assert(false, ExcNotImplemented("Setting up iniital condition: Please choose the right test case"));
+    }
+
   VectorTools::interpolate(dof_handler,
-                           InitialConditions::InitialValues<dim>(eps,
-                                                                 initial_temperature,
-                                                                 melting_t,
-                                                                 test_case,
-                                                                 extractors),
+                           initial_values,
                            tmp_initial_sol);
 
   constraints_boundary.distribute(tmp_initial_sol);
@@ -1024,8 +1112,6 @@ void StokesProblem<dim>::make_boundary_constraints()
           VectorTools::interpolate_boundary_values(dof_handler,
                                                    bc_id,
                                                    Functions::ZeroFunction<dim>(fe.n_components()),
-                                                   constraints_newton_update,
-                                                   vel_u_masked);
         }
 
         {
@@ -1048,7 +1134,6 @@ void StokesProblem<dim>::make_boundary_constraints()
         }
 
         {
-          // x=width, boundary id=1, 3
           // T = Ta
           const auto               const_function =
             Functions::ConstantFunction<dim>(initial_temperature, fe.n_components());
@@ -1202,14 +1287,86 @@ void StokesProblem<dim>::make_boundary_constraints()
         }
         break;
       }
+    case TestCase::test3: {
+
+        ComponentMask vel_v_masked(fe.n_components(), false);
+        vel_v_masked.set(extractors.velocities.first_vector_component, true);
+        {
+          // x=0, boundary id=0, velocity (u,v,w)
+          // u = 0
+          const types::boundary_id bc_id = 0;
+          ComponentMask vel_u_masked(fe.n_components(), false);
+          vel_u_masked.set(extractors.velocities.first_vector_component, true);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_boundary,
+                                                   vel_u_masked);
+
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   vel_u_masked);
+        }
+
+        {
+          // y=0, boundary id=2, velocity (u,v,w)
+          // velocity = 0
+          // temperature = boundary_temperature
+          // if you want to use wall relaxation, you need to set the
+          // boundary id to wall_bc_id;
+          const types::boundary_id bc_id = 2;
+          ComponentMask vel_masked(fe.n_components(), false);
+          for(unsigned int d = 0; d < dim; ++d)
+            vel_masked.set(extractors.velocities.first_vector_component + d,
+                           true);
+          
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_boundary,
+                                                   vel_masked);
+
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   vel_masked);
+
+          ComponentMask temperature_masked(fe.n_components(), false);
+          temperature_masked.set(extractors.temperature.component, true);
+          VectorTools::interpolate_boundary_values(mapping,
+                                                   dof_handler,
+                                                   bc_id,
+                                                    Functions::ConstantFunction<dim>(
+                                                      boundary_temperature,
+                                                      fe.n_components()),
+                                                   constraints_boundary,
+                                                   temperature_masked);
+                                                             
+
+          VectorTools::interpolate_boundary_values(mapping,
+                                                   dof_handler,
+                                                   bc_id,
+                                                    Functions::ZeroFunction<dim>(
+                                                      fe.n_components()),
+                                                   constraints_newton_update,
+                                                   temperature_masked);                                                   
+        }
+
+        {
+          // boundary id=1, 3
+          // zero shear stress and zero heat flux (both embedded in the weak form)
+        }
+        break;
+      }      
     default:
       Assert(false, ExcNotImplemented("Setting up constraints: Please choose the right test case"));
     }
 
   constraints_boundary.close();
   constraints_newton_update.close();
-
-
 }
 
 template <int dim>
@@ -2235,15 +2392,22 @@ void StokesProblem<dim>::newton_iteration()
   double residual = system_rhs.l2_norm();
 
   pcout << "initial residual=" << residual << std::endl;
+// #define USE_BLOCKDIRECT_SOLVER
 
 #ifdef USE_PETSC_LA
   SolverControl cn;
   PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
 #else
+  SolverControl                  solver_control(1000, 1e-8);
+  #ifndef USE_BLOCKDIRECT_SOLVER
   TrilinosWrappers::SolverDirect::AdditionalData data;
-  // data.solver_type = "Amesos_Lapack";
-  SolverControl                  solver_control(1000, 1e-10);
   TrilinosWrappers::SolverDirect solver(solver_control, data);
+  #else
+  TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
+  // SolverGMRES<VectorType> solver(solver_control);
+  SolverBicgstab<VectorType> solver(solver_control);
+  #endif
+
 #endif
 
   assemble_matrix = true;
@@ -2255,7 +2419,14 @@ void StokesProblem<dim>::newton_iteration()
       assemble_system(assemble_matrix);
       {
         TimerOutput::Scope t(computing_timer, "Direct Solve");
+        #ifdef USE_BLOCKDIRECT_SOLVER
+        preconditioner.initialize(system_matrix);
+        solver.solve(system_matrix, newton_update, system_rhs, preconditioner);
+        pcout<<" cg number of iterations: "<<solver_control.last_step()<<std::endl;
+        #else
         solver.solve(system_matrix, newton_update, system_rhs);
+        #endif
+        
       }
 
       pcout<<" mat norm: "<<system_matrix.frobenius_norm()
@@ -2475,7 +2646,7 @@ void StokesProblem<dim>::output_results(const unsigned int cycle) const
 
     // have to create the directory output
     data_out.write_vtu_with_pvtu_record(
-        "./output/", "solution", cycle, mpi_communicator, 5, 4);
+        "./output/", "solution", cycle, mpi_communicator, 5, 1);
 }
 
 template <int dim>
@@ -2569,8 +2740,8 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number = 2000;
-    const unsigned int output_interval = 100;
+    const unsigned int max_step_number = 4000;
+    const unsigned int output_interval = 10;
 
     make_grid();
 
@@ -2591,6 +2762,7 @@ void StokesProblem<dim>::run()
     while (step_number < max_step_number)
       {
         old_timestep     = present_timestep;
+        present_timestep = std::min(fix_time_step, (1e-4) * std::pow(1.05, step_number));        
 
         step_number ++;
         runtime += present_timestep;
@@ -2605,6 +2777,7 @@ void StokesProblem<dim>::run()
         old_old_solution = old_solution;          // n-1
         old_solution = locally_relevant_solution; // n
         current_solution = old_solution; // u^*, newton initial guess
+        old_timestep = present_timestep;
 
         // theta = 0.5;
 
@@ -2635,7 +2808,7 @@ int main(int argc, char *argv[])
         using namespace Step55;
 
         Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-        const TestCase testcase = TestCase::test2;
+        const TestCase testcase = TestCase::test3;
         if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
           std::cout << "running " << enum_str[static_cast<int>(testcase)]
                     << std::endl;
