@@ -814,6 +814,7 @@ private:
     const double lambda_phi, lambda_psi;
     const double mobility_phi, mobility_psi;
     const double latent_heat, melting_t;
+    const double thermal_diffusivity_l;
     const double thermal_conductivity;
     const double initial_temperature; //Ta
     const double boundary_temperature; 
@@ -927,7 +928,6 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
     , max_mesh_size(0.5)
 {
   print_variables();
-
 }
 
 template <int dim>
@@ -2386,10 +2386,11 @@ void StokesProblem<dim>::newton_iteration()
   pcout<< "Newton iteration" << std::endl;
 
   // set to 1 for testing
-  const unsigned int max_iter = 10;
+  const unsigned int max_iter = 6;
   bool assemble_matrix = false;
   assemble_system(assemble_matrix);
-  double residual = system_rhs.l2_norm();
+  const double initial_residual = system_rhs.l2_norm();
+  double residual = initial_residual;
 
   pcout << "initial residual=" << residual << std::endl;
 // #define USE_BLOCKDIRECT_SOLVER
@@ -2414,7 +2415,7 @@ void StokesProblem<dim>::newton_iteration()
   VectorType locally_owned_solution(system_rhs);
   locally_owned_solution = current_solution;
   for (unsigned int k = 1; k <= max_iter; ++k) {
-      if (residual < 1.e-6 * hmin)
+      if (residual < 1.e-8 * initial_residual)
         break;
       assemble_system(assemble_matrix);
       {
