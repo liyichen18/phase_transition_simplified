@@ -24,7 +24,7 @@
 
 #include <deal.II/lac/generic_linear_algebra.h>
 
-//#define FORCE_USE_OF_TRILINOS
+#define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
 
 namespace LA
@@ -436,11 +436,11 @@ namespace InitialConditions
             break;
           }
         case TestCase::test2: {
-            const double w_ac = 0.25;
+            const double w_ac = 0.5;
             const double d = x - w_ac;
             const double psi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double w_ch = 0.5;
+            const double w_ch = 0.8;
             const double d_ch = w_ch - x;
             const double phi = 0.5 * (1. + std::tanh(d_ch/eps1));
 
@@ -767,10 +767,10 @@ void StokesProblem<dim>::make_grid()
     case TestCase::test2: {
         AssertDimension(dim, 2);
         const Point<dim> p0;
-        const Point<dim> p1 = Point<dim>(1., 1./4.);
+        const Point<dim> p1 = Point<dim>(2., 1./4.);
 
         std::vector< unsigned int > repetitions(dim,1); 
-        repetitions[0] = 4;
+        repetitions[0] = 8;
 
         const bool   colorize = true;
         GridGenerator::subdivided_hyper_rectangle(
@@ -1904,7 +1904,7 @@ void StokesProblem<dim>::newton_iteration()
   SolverControl cn;
   PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
 #else
-  SolverControl                  solver_control(1000, 1e-10);
+  SolverControl                  solver_control(1000, 1e-14);
 
   // TrilinosWrappers::SolverDirect::AdditionalData data;
   // // data.solver_type = "Amesos_Lapack";
@@ -1920,23 +1920,23 @@ void StokesProblem<dim>::newton_iteration()
   VectorType locally_owned_solution(system_rhs);
   locally_owned_solution = current_solution;
   for (unsigned int k = 1; k <= max_iter; ++k) {
-      if (residual < 1.e-6 * hmin)
+      if (residual < 1.e-7 * hmin)
         break;
       assemble_system(assemble_matrix);
       {
         TimerOutput::Scope t(computing_timer, "Direct Solve");
-        try
-          {
-            preconditioner.initialize(system_matrix);
-            solver.solve(system_matrix,
-                         newton_update,
-                         system_rhs,
-                         preconditioner);
+        // try
+        //   {
+        //     preconditioner.initialize(system_matrix);
+        //     solver.solve(system_matrix,
+        //                  newton_update,
+        //                  system_rhs,
+        //                  preconditioner);
 
-            pcout << " cg number of iterations: " << solver_control.last_step()
-                  << std::endl;
-          }
-        catch (const std::exception &exc)
+        //     pcout << " cg number of iterations: " << solver_control.last_step()
+        //           << std::endl;
+        //   }
+        // catch (const std::exception &exc)
           {
             pcout << " cg failed, use direct solver: " << std::endl;
             TrilinosWrappers::SolverDirect::AdditionalData data;
@@ -2152,7 +2152,7 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number = 4000;
+    const unsigned int max_step_number = 400;
     const unsigned int output_interval = 10;
 
     make_grid();
