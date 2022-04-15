@@ -726,18 +726,18 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
+  const double G      = 1.;//1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 1.;//1.452778e+04; // sensible heat / surface tension (AC/CH)
   const double one_over_Pi_T = 1.0 / Pi_T;
-  const double Pi_eta = 1.101074e+09; // sensible heat / visicosity 
+  const double Pi_eta = 1.;//1.101074e+09; // sensible heat / visicosity 
   const double one_over_Pi_eta = 1.0 / Pi_eta;
-  const double Ste    = 1.252695e-02; // Stefan number
+  const double Ste    = 1.;//1.252695e-02; // Stefan number
   const double one_over_Ste = 1.0 / Ste;
-  const double We     = 9.801738e-07; // Weber number
+  const double We     = 1.;//9.801738e-07; // Weber number
   const double one_over_We = 1./ We; 
-  const double Re     = 7.428828e-02; // Reynolds number
+  const double Re     = 1.;//7.428828e-02; // Reynolds number
   const double one_over_Re = 1.0/Re;
-  const double Pe     = 1.000000e+00; // Peclet number
+  const double Pe     = 1.;//1.000000e+00; // Peclet number
   const double one_over_Pe = 1.0/Pe;
 } // namespace DimensionlessGroups
 
@@ -823,7 +823,8 @@ private:
 
     const double density_s, density_l, density_g;
     const double inv_density_s, inv_density_l, inv_density_g;
-    double present_timestep, old_timestep, fix_time_step;
+    double present_timestep, old_timestep;
+    const double  fix_time_step;
     const double cl,cs,cg; // heat capacity
     const double eta_l,eta_s,eta_g;  //viscosity
     const double surface_tension_phi_ch;
@@ -893,56 +894,69 @@ StokesProblem<dim>::create_fe_multiplicities()
 template <int dim>
 StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                                   const TestCase &testcase)
-    : velocity_degree(velocity_degree)
-    , quadrature_degree(2 * velocity_degree + 4)
-    , viscosity(0.1)
-    , mpi_communicator(MPI_COMM_WORLD)
-    , fe(create_fe_list(velocity_degree),
-         create_fe_multiplicities())
-    , triangulation(mpi_communicator,
-                    typename Triangulation<dim>::MeshSmoothing(
-                        Triangulation<dim>::smoothing_on_refinement |
-                        Triangulation<dim>::smoothing_on_coarsening))
-    , dof_handler(triangulation)
-    , pcout(std::cout,
-            (Utilities::MPI::this_mpi_process(mpi_communicator) == 0))
-    , computing_timer(mpi_communicator,
-                      pcout,
-                      TimerOutput::summary,
-                      TimerOutput::wall_times)
-    , component_ids(ComponentIndices<dim>())
-    , extractors(ComponentIndices<dim>())
-    , eps(0.1)
-    , test_case(testcase)
-    , n_refinement(5)
-    , density_s(0.9)
-    , density_l(1.)
-    , density_g(1.)
-    , inv_density_s(1./density_s)
-    , inv_density_l(1./density_l)
-    , inv_density_g(1./density_g)
-    , present_timestep(5e-2), old_timestep(present_timestep)
-    , cl(1.), cs(1.), cg(1.)
-    , eta_l(1.), eta_s(1.), eta_g(1.)
-    , surface_tension_phi_ch(0.5)
-    , surface_tension_psi_ac(0.5)
-    , lambda_phi(1.), lambda_psi(InlineFunctions::compute_lambda_from_surface_tension(density_l, 
-                                                                                      density_s, 
-                                                                                      surface_tension_psi_ac, 
-                                                                                      eps))/*which density should be used?*/
-    , mobility_phi(1e-4), mobility_psi(1e0)
-    , latent_heat(1.)
-    , melting_t(1.)
-    , thermal_conductivity(1.)
-    , initial_temperature(0.01)
-    , ambient_pressure(0.1)
-    , mapping(1)
-    , static_contact_angle(numbers::PI / 3.)
-    , one_over_wall_relaxation_gamma(0.001)
-    , wall_velocity(Tensor<1,dim>())
-    , use_adaptive_refinement(true)
-    , min_mesh_size(0.01)
-    , max_mesh_size(0.5)
+  : velocity_degree(velocity_degree)
+  , quadrature_degree(2 * velocity_degree + 4)
+  , mpi_communicator(MPI_COMM_WORLD)
+  , fe(create_fe_list(velocity_degree), create_fe_multiplicities())
+  , triangulation(mpi_communicator,
+                  typename Triangulation<dim>::MeshSmoothing(
+                    Triangulation<dim>::smoothing_on_refinement |
+                    Triangulation<dim>::smoothing_on_coarsening))
+  , dof_handler(triangulation)
+  , pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0))
+  , computing_timer(mpi_communicator,
+                    pcout,
+                    TimerOutput::summary,
+                    TimerOutput::wall_times)
+  , component_ids(ComponentIndices<dim>())
+  , extractors(ComponentIndices<dim>())
+  , eps(0.1)
+  , test_case(testcase)
+  , n_refinement(4)
+  , density_s(0.9)
+  , density_l(1.)
+  , density_g(1.)
+  , inv_density_s(1. / density_s)
+  , inv_density_l(1. / density_l)
+  , inv_density_g(1. / density_g)
+  , present_timestep(5e-2)
+  , old_timestep(present_timestep)
+  , fix_time_step(present_timestep)
+  , cl(1.)
+  , cs(1.)
+  , cg(1.)
+  , eta_l(1.)
+  , eta_s(1.)
+  , eta_g(1.)
+  , surface_tension_phi_ch(0.5)
+  , surface_tension_psi_ac(0.5)
+  , lambda_phi(InlineFunctions::compute_lambda_from_surface_tension(
+      density_l,
+      density_g,
+      surface_tension_phi_ch,
+      eps))
+  , lambda_psi(InlineFunctions::compute_lambda_from_surface_tension(
+      density_l,
+      density_s,
+      surface_tension_psi_ac,
+      eps)) /*which density should be used?*/
+  , mobility_phi(1e-4)
+  , mobility_psi(1e0)
+  , latent_heat(1.)
+  , melting_t(1.)
+  , thermal_diffusivity_l(
+      1.) // thermal_diffusivity_l = thermal_conductivity/(density_l*cl)
+  , thermal_conductivity(1.)
+  , initial_temperature(0.01)
+  , boundary_temperature(0.01)
+  , ambient_pressure(0.1)
+  , mapping(1)
+  , static_contact_angle(numbers::PI / 2.)
+  , one_over_wall_relaxation_gamma(0.)
+  , wall_velocity(Tensor<1, dim>())
+  , use_adaptive_refinement(false)
+  , min_mesh_size(0.01)
+  , max_mesh_size(0.5)
 {
   print_variables();
 }
@@ -1129,7 +1143,10 @@ void StokesProblem<dim>::make_boundary_constraints()
           VectorTools::interpolate_boundary_values(dof_handler,
                                                    bc_id,
                                                    Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   vel_u_masked);
         }
+    
 
         {
           // x=y, boundary id=2, velocity (u,v,w)
@@ -1377,7 +1394,7 @@ void StokesProblem<dim>::make_boundary_constraints()
           // zero shear stress and zero heat flux (both embedded in the weak form)
         }
         break;
-      }      
+      }
     default:
       Assert(false, ExcNotImplemented("Setting up constraints: Please choose the right test case"));
     }
@@ -2765,8 +2782,8 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number = 4000;
-    const unsigned int output_interval = 10;
+    const unsigned int max_step_number = 2000;
+    const unsigned int output_interval = 100;
 
     make_grid();
 
@@ -2833,7 +2850,7 @@ int main(int argc, char *argv[])
         using namespace Step55;
 
         Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-        const TestCase testcase = TestCase::test3;
+        const TestCase testcase = TestCase::test2;
         if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
           std::cout << "running " << enum_str[static_cast<int>(testcase)]
                     << std::endl;
