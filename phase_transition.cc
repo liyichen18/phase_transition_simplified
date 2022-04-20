@@ -43,6 +43,7 @@ using namespace dealii::LinearAlgebraTrilinos;
 
 #include <deal.II/lac/vector.h>
 #include <deal.II/lac/full_matrix.h>
+#include <deal.II/lac/solver_bicgstab.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/solver_minres.h>
@@ -386,7 +387,7 @@ namespace InlineFunctions
                   const int                & max_level,     
                   //component extractor for phase field phi
                   const Extractors<dim>    &extractors,
-                  const double             &width = 0.16
+                  const double             &width = 0.35
                   )
 
   {
@@ -411,10 +412,11 @@ namespace InlineFunctions
       return std::make_pair(min_value, max_value);
     };
 
-    const auto is_interface_cell = [&](const double min_value, const double max_value)
-    {
-      return (min_value*max_value<0 || std::abs(max_value - 0.5)<width
-                            || std::abs(min_value - 0.5)<width);
+    const auto is_interface_cell = [&](const double min_value,
+                                       const double max_value) {
+      return ((max_value - 0.5) * (min_value - 0.5) < 0 ||
+              std::abs(max_value - 0.5) < width ||
+              std::abs(min_value - 0.5) < width);
     };
 
     for(const auto &dof_cell : dof_handler.active_cell_iterators())
@@ -431,14 +433,17 @@ namespace InlineFunctions
 
           const double phi_ch_min = max_min_phi_ch.first;
           const double phi_ch_max = max_min_phi_ch.second;
-          const double psi_ac_min = max_min_psi_ac.first;
-          const double psi_ac_max = max_min_psi_ac.second;
+          const double psi_ac_min = max_min_psi_ac.first * phi_ch_max;
+          const double psi_ac_max = max_min_psi_ac.second * phi_ch_max;
 
           const int    level = dof_cell->level();
           const double size  = dof_cell->minimum_vertex_distance();
 
-          if (is_interface_cell(phi_ch_min, phi_ch_max) ||
-              is_interface_cell(psi_ac_min, psi_ac_max))
+          if (
+            is_interface_cell(phi_ch_min, phi_ch_max) 
+          ||
+              is_interface_cell(psi_ac_min, psi_ac_max)
+              )
             {
               // This is an interface cell
               // set_refine_flag() and set_coarsen_flag() can be found in calss
@@ -569,18 +574,22 @@ namespace InitialConditions
             break;
           }
         case TestCase::test2: {
-            const double w = 1;
-            const double d = x - w;
+            const double w_ac = 0.5;
+            const double d = x - w_ac;
             const double psi = 0.5 * (1. + std::tanh(d/eps1));
+
+            const double w_ch = 0.8;
+            const double d_ch = w_ch - x;
+            const double phi = 0.5 * (1. + std::tanh(d_ch/eps1));
 
             for(unsigned int comp = 0; comp < values.size(); ++comp)
               {
                 if (comp == extractors.psi_ac.component)
                   values(comp) = psi;
                 else if (comp == extractors.temperature.component)
-                  values(comp) = melting_temperature * (1. + alpha * d/w);
+                  values(comp) = melting_temperature * (0.9 + 0.1 * x);
                 else if (comp == extractors.phi_ch.component)
-                  values(comp) = 1.;
+                  values(comp) = phi;
                 else
                   values(comp) = 0;
 
@@ -726,14 +735,14 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 1.;//1.159722e+06; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 1.;//1.452778e+04; // sensible heat / surface tension (AC/CH)
+  const double G      = 2.;//1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 2.;//1.452778e+04; // sensible heat / surface tension (AC/CH)
   const double one_over_Pi_T = 1.0 / Pi_T;
   const double Pi_eta = 1.;//1.101074e+09; // sensible heat / visicosity 
   const double one_over_Pi_eta = 1.0 / Pi_eta;
   const double Ste    = 1.;//1.252695e-02; // Stefan number
   const double one_over_Ste = 1.0 / Ste;
-  const double We     = 1.;//9.801738e-07; // Weber number
+  const double We     = 2.;//9.801738e-07; // Weber number
   const double one_over_We = 1./ We; 
   const double Re     = 1.;//7.428828e-02; // Reynolds number
   const double one_over_Re = 1.0/Re;
@@ -823,10 +832,9 @@ private:
 
     const double density_s, density_l, density_g;
     const double inv_density_s, inv_density_l, inv_density_g;
-    double present_timestep, old_timestep;
-    const double  fix_time_step;
-    const double cl,cs,cg; // heat capacity
-    const double eta_l,eta_s,eta_g;  //viscosity
+    double present_timestep, old_timestep, fix_timestep;
+    const double cl,cs,cg;
+    const double eta_l,eta_s,eta_g;
     const double surface_tension_phi_ch;
     const double surface_tension_psi_ac;
     const double lambda_phi, lambda_psi;
@@ -910,26 +918,26 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                     TimerOutput::wall_times)
   , component_ids(ComponentIndices<dim>())
   , extractors(ComponentIndices<dim>())
-  , eps(0.1)
+  , eps(0.01)
   , test_case(testcase)
-  , n_refinement(4)
+  , n_refinement(8)
   , density_s(0.9)
   , density_l(1.)
   , density_g(1.)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(5e-2)
+  , present_timestep(1e-2)
   , old_timestep(present_timestep)
-  , fix_time_step(present_timestep)
+  , fix_timestep(present_timestep)
   , cl(1.)
   , cs(1.)
   , cg(1.)
   , eta_l(1.)
   , eta_s(1.)
   , eta_g(1.)
-  , surface_tension_phi_ch(0.5)
-  , surface_tension_psi_ac(0.5)
+  , surface_tension_phi_ch(1)
+  , surface_tension_psi_ac(1)
   , lambda_phi(InlineFunctions::compute_lambda_from_surface_tension(
       density_l,
       density_g,
@@ -954,7 +962,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , static_contact_angle(numbers::PI / 2.)
   , one_over_wall_relaxation_gamma(0.)
   , wall_velocity(Tensor<1, dim>())
-  , use_adaptive_refinement(false)
+  , use_adaptive_refinement(true)
   , min_mesh_size(0.01)
   , max_mesh_size(0.5)
 {
@@ -982,10 +990,10 @@ void StokesProblem<dim>::make_grid()
     case TestCase::test2: {
         AssertDimension(dim, 2);
         const Point<dim> p0;
-        const Point<dim> p1 = Point<dim>(2., 1.);
+        const Point<dim> p1 = Point<dim>(2., 1./4.);
 
         std::vector< unsigned int > repetitions(dim,1); 
-        repetitions[0] = 2;
+        repetitions[0] = 8;
 
         const bool   colorize = true;
         GridGenerator::subdivided_hyper_rectangle(
@@ -1005,7 +1013,10 @@ void StokesProblem<dim>::make_grid()
         const bool   colorize = true;
         const double width = 2.;
         GridGenerator::hyper_cube(triangulation, 0., width, colorize);
-        triangulation.refine_global(n_refinement);
+        if(use_adaptive_refinement)
+          triangulation.refine_global(3);
+        else
+          triangulation.refine_global(n_refinement);
 
         break;
       }      
@@ -1037,15 +1048,21 @@ void StokesProblem<dim>::make_grid()
                                            locally_relevant_dofs,
                                            mpi_communicator);
           setup_initial_condition();
-          
-          if (label_mesh<dim, VectorType>(dof_handler,
-                                          fe,
-                                          locally_relevant_solution,
-                                          min_mesh_size,
-                                          max_mesh_size,
-                                          0,
-                                          max_refinement_level,
-                                          extractors))
+
+          const bool refine_mesh_local =
+            label_mesh<dim, VectorType>(dof_handler,
+                                        fe,
+                                        locally_relevant_solution,
+                                        min_mesh_size,
+                                        max_mesh_size,
+                                        0,
+                                        n_refinement,
+                                        extractors);
+
+          const bool refine_mesh =
+            Utilities::MPI::logical_or(refine_mesh_local, mpi_communicator);
+
+          if (refine_mesh)
             {
               triangulation.execute_coarsening_and_refinement();
 
@@ -1196,10 +1213,10 @@ void StokesProblem<dim>::make_boundary_constraints()
         break;
       }
       case TestCase::test2: {
-        const double alpha =
-          InitialConditions::InitialValues<dim>(
-            eps, initial_temperature, melting_t, test_case, extractors)
-            .get_alpha();
+        // const double alpha =
+        //   InitialConditions::InitialValues<dim>(
+        //     eps, initial_temperature, melting_t, test_case, extractors)
+        //     .get_alpha();
         {
           // x=0, boundary id=0,
           // velocity (u,v,w) = 0 at id = 0
@@ -1230,7 +1247,7 @@ void StokesProblem<dim>::make_boundary_constraints()
           // temperature constraints
           ComponentMask temperature_masked(fe.n_components(), false);
           temperature_masked.set(extractors.temperature.component, true);
-          const double t_alpha = (1.0 - alpha) * melting_t;
+          const double t_alpha = 0.9 * melting_t;
 
           VectorTools::interpolate_boundary_values(
             mapping,
@@ -1277,7 +1294,7 @@ void StokesProblem<dim>::make_boundary_constraints()
           // temperature constraints
           ComponentMask temperature_masked(fe.n_components(), false);
           temperature_masked.set(extractors.temperature.component, true);
-          const double t_alpha = (1.0 + alpha) * melting_t;
+          const double t_alpha = melting_t;
 
           VectorTools::interpolate_boundary_values(
             mapping,
@@ -2427,7 +2444,7 @@ void StokesProblem<dim>::newton_iteration()
   pcout<< "Newton iteration" << std::endl;
 
   // set to 1 for testing
-  const unsigned int max_iter = 6;
+  const unsigned int max_iter = 10;
   bool assemble_matrix = false;
   assemble_system(assemble_matrix);
   const double initial_residual = system_rhs.l2_norm();
@@ -2441,50 +2458,67 @@ void StokesProblem<dim>::newton_iteration()
   PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
 #else
   SolverControl                  solver_control(1000, 1e-8);
-  #ifndef USE_BLOCKDIRECT_SOLVER
-  TrilinosWrappers::SolverDirect::AdditionalData data;
-  TrilinosWrappers::SolverDirect solver(solver_control, data);
-  #else
-  TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
-  // SolverGMRES<VectorType> solver(solver_control);
-  SolverBicgstab<VectorType> solver(solver_control);
-  #endif
 
+  // TrilinosWrappers::SolverDirect::AdditionalData data;
+  // // data.solver_type = "Amesos_Lapack";
+  // TrilinosWrappers::SolverDirect solver(solver_control, data);
+
+  TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
+
+  // SolverGMRES<VectorType> solver(solver_control);
+  SolverBicgstab<VectorType> solver(solver_control);  
 #endif
 
   assemble_matrix = true;
   VectorType locally_owned_solution(system_rhs);
   locally_owned_solution = current_solution;
   for (unsigned int k = 1; k <= max_iter; ++k) {
-      if (residual < 1.e-8 * initial_residual)
+      if (residual < 1.e-6 * initial_residual)
         break;
       assemble_system(assemble_matrix);
       {
         TimerOutput::Scope t(computing_timer, "Direct Solve");
-        #ifdef USE_BLOCKDIRECT_SOLVER
-        preconditioner.initialize(system_matrix);
-        solver.solve(system_matrix, newton_update, system_rhs, preconditioner);
-        pcout<<" cg number of iterations: "<<solver_control.last_step()<<std::endl;
-        #else
-        solver.solve(system_matrix, newton_update, system_rhs);
-        #endif
-        
+        try
+          {
+            Timer timer(mpi_communicator);
+            preconditioner.initialize(system_matrix);
+            solver.solve(system_matrix,
+                         newton_update,
+                         system_rhs,
+                         preconditioner);
+
+            pcout << " cg number of iterations: " << solver_control.last_step()
+                  << " cg solve time: "<< timer.wall_time()
+                  << std::endl;
+          }
+        catch (const std::exception &exc)
+          {
+            Timer timer(mpi_communicator);
+            pcout << " cg failed, use direct solver: " << std::endl;
+            TrilinosWrappers::SolverDirect::AdditionalData data;
+            TrilinosWrappers::SolverDirect solver(solver_control, data);
+            solver.solve(system_matrix, newton_update, system_rhs);
+            timer.stop();
+            pcout<<" direct solver time: "<<timer.wall_time()<<std::endl;
+          }
       }
 
+
       pcout<<" mat norm: "<<system_matrix.frobenius_norm()
-          <<" rh2 norm: "<< system_rhs.l2_norm()
-            <<" sol norm: "<< newton_update.l2_norm()<<std::endl;
+           <<" rh2 norm: "<< system_rhs.l2_norm()
+           <<" sol norm: "<< newton_update.l2_norm()<<std::endl;
 
       constraints_newton_update.distribute(newton_update);
 
-      locally_owned_solution += newton_update;
+      const double alpha = 1.;
+      // locally_owned_solution += newton_update;
+      locally_owned_solution.add(alpha, newton_update);
       current_solution = locally_owned_solution;
 
       residual = system_rhs.l2_norm();
       pcout << "k= " << k << "  residual = " << residual <<  std::endl;
     }
   locally_relevant_solution = current_solution;
-
 
 }
 
@@ -2783,7 +2817,7 @@ void StokesProblem<dim>::run()
     double runtime           = 0.;
 
     const unsigned int max_step_number = 2000;
-    const unsigned int output_interval = 100;
+    const unsigned int output_interval = 10;
 
     make_grid();
 
@@ -2804,7 +2838,7 @@ void StokesProblem<dim>::run()
     while (step_number < max_step_number)
       {
         old_timestep     = present_timestep;
-        present_timestep = std::min(fix_time_step, (1e-4) * std::pow(1.05, step_number));        
+        present_timestep = std::min(fix_timestep, (1e-4) * std::pow(1.05, step_number));        
 
         step_number ++;
         runtime += present_timestep;
@@ -2850,7 +2884,7 @@ int main(int argc, char *argv[])
         using namespace Step55;
 
         Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-        const TestCase testcase = TestCase::test2;
+        const TestCase testcase = TestCase::test3;
         if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
           std::cout << "running " << enum_str[static_cast<int>(testcase)]
                     << std::endl;
