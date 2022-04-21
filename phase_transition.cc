@@ -2449,6 +2449,8 @@ void StokesProblem<dim>::newton_iteration()
   assemble_system(assemble_matrix);
   const double initial_residual = system_rhs.l2_norm();
   double residual = initial_residual;
+  double residual_old = initial_residual;
+  double alpha = 1.;
 
   pcout << "initial residual=" << residual << std::endl;
 // #define USE_BLOCKDIRECT_SOLVER
@@ -2471,6 +2473,7 @@ void StokesProblem<dim>::newton_iteration()
 
   assemble_matrix = true;
   VectorType locally_owned_solution(system_rhs);
+  VectorType locally_owned_solution_tmp(system_rhs);
   locally_owned_solution = current_solution;
   for (unsigned int k = 1; k <= max_iter; ++k) {
       if (residual < 1.e-6 * initial_residual)
@@ -2510,13 +2513,63 @@ void StokesProblem<dim>::newton_iteration()
 
       constraints_newton_update.distribute(newton_update);
 
-      const double alpha = 1.;
       // locally_owned_solution += newton_update;
       locally_owned_solution.add(alpha, newton_update);
       current_solution = locally_owned_solution;
 
+      residual_old = residual;
       residual = system_rhs.l2_norm();
       pcout << "k= " << k << "  residual = " << residual <<  std::endl;
+
+      if(residual > residual_old)
+        {
+          // backtracking is trigged
+          pcout<<" backtracking is trigged "
+          <<" residual = "<<residual<<" residual_old = "<<residual_old<<std::endl;
+          double alpha3 =1.;
+          double g3 = residual;
+          const double g1 = residual_old;
+
+          for(unsigned int m=0; m<7; ++m)
+          {
+            alpha3 *= 0.5;
+            locally_owned_solution_tmp = locally_owned_solution;
+            locally_owned_solution_tmp.add(alpha3, newton_update);
+            current_solution = locally_owned_solution;
+            assemble_system(false);
+            g3 = system_rhs.l2_norm();
+            pcout<<" g3 = "<<residual<<" alpha = "<<alpha3<<std::endl;
+            if(g3 < residual_old)
+              break;
+          }
+
+          const double alpha2 = 0.5 * alpha3;
+          locally_owned_solution_tmp = locally_owned_solution;
+          locally_owned_solution_tmp.add(alpha2, newton_update);
+          current_solution = locally_owned_solution;
+          assemble_system(false);
+          const double g2 = system_rhs.l2_norm();
+          pcout<<" g2 = "<<g2<<std::endl;
+
+          // find alpha0
+          const double h1 = (g2-g1)/alpha2;
+          const double h2 = (g3-g2)/(alpha3-alpha2);
+          const double h3 = (h2-h1)/alpha3;
+          const double alpha0 = (alpha2 - h1/h3) * 0.5;
+          locally_owned_solution_tmp = locally_owned_solution;
+          locally_owned_solution_tmp.add(alpha0, newton_update);
+          current_solution = locally_owned_solution;
+          assemble_system(false);
+          const double g0 = system_rhs.l2_norm();
+          pcout<<" g0 = "<<g0<<std::endl;
+
+          alpha = g3 < g0 ? alpha3:alpha0;
+                // locally_owned_solution += newton_update;
+          locally_owned_solution.add(alpha, newton_update);
+          current_solution = locally_owned_solution;
+        }
+
+
     }
   locally_relevant_solution = current_solution;
 
