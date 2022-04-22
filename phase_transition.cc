@@ -286,6 +286,45 @@ namespace InlineFunctions
 
 } //namespace inline funcitons
 
+bool
+fexists(const std::string &filename)
+{
+  std::ifstream ifile(filename.c_str());
+
+  // return whether construction of the input file has succeeded;
+  // success requires the file to exist and to be readable
+  return static_cast<bool>(ifile);
+}
+
+void
+move_file(const std::string &old_name, const std::string &new_name)
+{
+  int error = system(("mv " + old_name + " " + new_name).c_str());
+
+  // If the above call failed, e.g. because there is no command-line
+  // available, try with internal functions.
+  if (error != 0)
+    {
+      if (fexists(new_name))
+        {
+          error = remove(new_name.c_str());
+          AssertThrow(error == 0,
+                      ExcMessage(
+                        std::string("Unable to remove file: " + new_name +
+                                    ", although it seems to exist. " +
+                                    "The error code is " +
+                                    Utilities::to_string(error) + ".")));
+        }
+
+      error = rename(old_name.c_str(), new_name.c_str());
+      AssertThrow(error == 0,
+                  ExcMessage(std::string("Unable to rename files: ") +
+                             old_name + " -> " + new_name +
+                             ". The error code is " +
+                             Utilities::to_string(error) + "."));
+    }
+}
+
 
   template <int dim>
   void
