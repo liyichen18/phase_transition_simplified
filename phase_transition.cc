@@ -827,6 +827,11 @@ private:
 
     std::vector<unsigned int> create_fe_multiplicities();
 
+    void
+    save_checkpoint(const unsigned int step_number, const double runtime);
+    void
+    load_checkpoint(unsigned int &step_number, double &runtime);
+
 
 
     const unsigned int velocity_degree;
@@ -2896,6 +2901,105 @@ StokesProblem<dim>::test_adaptive_refinement()
 }
 
 template <int dim>
+void
+StokesProblem<dim>::save_checkpoint(const unsigned int step_number,
+                                    const double       runtime)
+{
+  TimerOutput::Scope t(computing_timer, "save checkpoints");
+  pcout<<" save checkpoint\n"<<std::flush;
+  {
+    // mesh and vectors
+    std::vector<const VectorType *> solutions(3);
+    solutions[0] = &locally_relevant_solution;
+    solutions[1] = &old_solution;
+    solutions[2] = &old_old_solution;
+
+    for (unsigned int i = 0; i < solutions.size(); ++i)
+      {
+        VectorType tmp_sol(system_rhs);
+        tmp_sol = *solutions[i];
+        pcout << " solution l2 norm: " << tmp_sol.l2_norm() << std::endl;
+      }
+
+    parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
+      dof_handler);
+
+    solution_trans.prepare_for_serialization(solutions);
+    triangulation.save("./checkpoints/restart.mesh");
+  }
+
+  {
+    // other parameters
+    std::ofstream ofs("./checkpoints/restart.dat");
+    boost::archive::binary_oarchive ar(ofs);
+
+    ar & step_number;
+    ar & runtime;
+  }
+}
+
+template <int dim>
+void
+StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
+                                   double       &runtime)
+{
+  pcout<<" load checkpoint\n"<<std::flush;
+  const unsigned int step_number_old = step_number;
+  std::string step_number_string;
+  if(step_number != 0)
+    step_number_string = Utilities::int_to_string(step_number, 5);
+  {
+    const bool   colorize = true;
+    const double width    = 2.;
+    GridGenerator::hyper_cube(triangulation, 0., width, colorize);
+    pcout << " n_levels: " << triangulation.n_levels() << std::endl;
+
+    triangulation.load("./checkpoints/restart" + step_number_string + ".mesh");
+    print_mesh_info(triangulation);
+    dof_handler.distribute_dofs(fe);
+    pcout << " n_dofs: " << dof_handler.n_dofs() << std::endl;
+    parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
+      dof_handler);
+    setup_system();
+
+    const unsigned int      n_vectors = 3;
+    std::vector<VectorType> solutions(n_vectors);
+    for (unsigned int i = 0; i < n_vectors; ++i)
+      solutions[i].reinit(dof_handler.locally_owned_dofs(), mpi_communicator);
+
+    std::vector<VectorType *> x_system(3);
+    int                       i = 0;
+    for (auto &v : x_system)
+      {
+        v = &solutions[i];
+        ++i;
+      }
+
+    solution_trans.deserialize(x_system);
+    for (unsigned int i = 0; i < solutions.size(); ++i)
+      {
+        pcout << " solution l2 norm: " << solutions[i].l2_norm() << std::endl;
+      }
+    locally_relevant_solution = solutions[0];
+    old_solution              = solutions[1];
+    old_old_solution          = solutions[2];
+  }
+
+  {
+    // load other parameters:
+    // std::ifstream                   ifs("checkpoint.dat");
+    std::ifstream                   ifs("./checkpoints/restart" + step_number_string + ".dat");
+    boost::archive::binary_iarchive ar(ifs);
+
+    ar &step_number;
+    ar &runtime;
+    AssertDimension(step_number, step_number_old);
+    (void)step_number_old;
+  }
+  pcout<<" loaded checkpoint from step: "<<step_number<<" runtime: "<<runtime<<std::endl;
+}
+
+template <int dim>
 void StokesProblem<dim>::run()
 {
 #ifdef USE_PETSC_LA
@@ -2910,16 +3014,28 @@ void StokesProblem<dim>::run()
 
     const unsigned int max_step_number = 2000;
     const unsigned int output_interval = 10;
+    const unsigned int checkpoint_output_interval = 20;
 
-    make_grid();
+    const bool start_from_checkpoint = false;// false;
+
+    if(!start_from_checkpoint)
+      {
+        make_grid();
 
 #ifdef USE_DIRECT_SOLVER
-    setup_system();
+        setup_system();
 #else
-    setup_block_system();
+        setup_block_system();
 #endif
 
-    setup_initial_condition();
+        setup_initial_condition();
+      }
+    else
+    {
+      // restart step number
+      step_number = 20;
+      load_checkpoint(step_number, runtime);
+    }
 
     output_results(step_number);
 
@@ -2956,8 +3072,24 @@ void StokesProblem<dim>::run()
             TimerOutput::Scope t(computing_timer, "output");
             output_results(step_number);
           }
-        pcout << std::endl;
-        pcout << std::endl;
+
+      if(step_number%5 == 0)
+        save_checkpoint(step_number, runtime);
+
+      if(step_number % checkpoint_output_interval == 0)
+      {
+        if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+        {
+          const std::string filename = "./checkpoints/restart" + Utilities::int_to_string(step_number, 5);
+          move_file("./checkpoints/restart.mesh", filename + ".mesh");
+          move_file("./checkpoints/restart.mesh.info", filename + ".mesh.info");
+          move_file("./checkpoints/restart.mesh_fixed.data", filename + ".mesh_fixed.data");
+          move_file("./checkpoints/restart.dat", filename + ".dat");
+        }
+      }
+
+      pcout << std::endl;
+      pcout << std::endl;
       }
     computing_timer.print_summary();
     computing_timer.reset();
