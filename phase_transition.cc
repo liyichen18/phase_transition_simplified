@@ -2488,7 +2488,7 @@ void StokesProblem<dim>::newton_iteration()
   pcout<< "Newton iteration" << std::endl;
 
   // set to 1 for testing
-  const unsigned int max_iter = 10;
+  const unsigned int max_iter = 50;
   bool assemble_matrix = false;
   assemble_system(assemble_matrix);
   const double initial_residual = system_rhs.l2_norm();
@@ -2557,8 +2557,9 @@ void StokesProblem<dim>::newton_iteration()
 
       constraints_newton_update.distribute(newton_update);
 
-      // locally_owned_solution += newton_update;
-      locally_owned_solution.add(alpha, newton_update);
+      locally_owned_solution += newton_update;
+      // alpha = 1;
+      // locally_owned_solution.add(alpha, newton_update);
       current_solution = locally_owned_solution;
 
       residual_old = residual;
@@ -2579,10 +2580,10 @@ void StokesProblem<dim>::newton_iteration()
             alpha3 *= 0.5;
             locally_owned_solution_tmp = locally_owned_solution;
             locally_owned_solution_tmp.add(alpha3, newton_update);
-            current_solution = locally_owned_solution;
+            current_solution = locally_owned_solution_tmp;
             assemble_system(false);
             g3 = system_rhs.l2_norm();
-            pcout<<" g3 = "<<residual<<" alpha = "<<alpha3<<std::endl;
+            pcout<<" g3 = "<<residual<<" alpha3 = "<<alpha3<<std::endl;
             if(g3 < residual_old)
               break;
           }
@@ -2590,10 +2591,21 @@ void StokesProblem<dim>::newton_iteration()
           const double alpha2 = 0.5 * alpha3;
           locally_owned_solution_tmp = locally_owned_solution;
           locally_owned_solution_tmp.add(alpha2, newton_update);
-          current_solution = locally_owned_solution;
+          current_solution = locally_owned_solution_tmp;
           assemble_system(false);
           const double g2 = system_rhs.l2_norm();
-          pcout<<" g2 = "<<g2<<std::endl;
+          pcout<<" g2 = "<<g2<< " alpha2 = " << alpha2 <<std::endl;
+
+          if(g2<g3)
+          {
+            alpha = alpha2;
+            residual = g2;
+          }
+          else
+          {
+            alpha = alpha3;
+            residual = g3;
+          }
 
           // find alpha0
           const double h1 = (g2-g1)/alpha2;
@@ -2602,12 +2614,18 @@ void StokesProblem<dim>::newton_iteration()
           const double alpha0 = (alpha2 - h1/h3) * 0.5;
           locally_owned_solution_tmp = locally_owned_solution;
           locally_owned_solution_tmp.add(alpha0, newton_update);
-          current_solution = locally_owned_solution;
+          current_solution = locally_owned_solution_tmp;
           assemble_system(false);
           const double g0 = system_rhs.l2_norm();
-          pcout<<" g0 = "<<g0<<std::endl;
+          pcout<<" g0 = "<<g0 <<" alpha0 = "<< alpha0 <<std::endl;
 
-          alpha = g3 < g0 ? alpha3:alpha0;
+          if(residual > g0)         
+          {
+            alpha = alpha0;
+            residual = g0;
+          }
+
+          pcout<<" residual = "<<residual<<" alpha = "<<alpha<<std::endl;
                 // locally_owned_solution += newton_update;
           locally_owned_solution.add(alpha, newton_update);
           current_solution = locally_owned_solution;
