@@ -971,7 +971,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(1e-2)
+  , present_timestep(5e-3)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
@@ -1714,7 +1714,10 @@ template <int dim>
 void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 {
     TimerOutput::Scope t(computing_timer, "assembly");
-    pcout<<" assemble system"<<std::endl;
+    Timer timer(mpi_communicator);
+
+
+    pcout<<" assemble system... "<<std::flush;
 
     system_matrix         = 0;
 //    preconditioner_matrix = 0;
@@ -2479,6 +2482,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
     system_matrix.compress(VectorOperation::add);
 //    preconditioner_matrix.compress(VectorOperation::add);
     system_rhs.compress(VectorOperation::add);
+
+    timer.stop();
+    pcout<<" assemble time: "<<timer.wall_time()<<std::endl;    
 }
 
 template <int dim>
@@ -2503,7 +2509,7 @@ void StokesProblem<dim>::newton_iteration()
   SolverControl cn;
   PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
 #else
-  SolverControl                  solver_control(1000, 1e-8);
+  SolverControl                  solver_control(1000, 1e-12);
 
   // TrilinosWrappers::SolverDirect::AdditionalData data;
   // // data.solver_type = "Amesos_Lapack";
@@ -2525,20 +2531,20 @@ void StokesProblem<dim>::newton_iteration()
       assemble_system(assemble_matrix);
       {
         TimerOutput::Scope t(computing_timer, "Direct Solve");
-        try
-          {
-            Timer timer(mpi_communicator);
-            preconditioner.initialize(system_matrix);
-            solver.solve(system_matrix,
-                         newton_update,
-                         system_rhs,
-                         preconditioner);
+        // try
+        //   {
+        //     Timer timer(mpi_communicator);
+        //     preconditioner.initialize(system_matrix);
+        //     solver.solve(system_matrix,
+        //                  newton_update,
+        //                  system_rhs,
+        //                  preconditioner);
 
-            pcout << " cg number of iterations: " << solver_control.last_step()
-                  << " cg solve time: "<< timer.wall_time()
-                  << std::endl;
-          }
-        catch (const std::exception &exc)
+        //     pcout << " cg number of iterations: " << solver_control.last_step()
+        //           << " cg solve time: "<< timer.wall_time()
+        //           << std::endl;
+        //   }
+        // catch (const std::exception &exc)
           {
             Timer timer(mpi_communicator);
             pcout << " cg failed, use direct solver: " << std::endl;
@@ -2575,7 +2581,7 @@ void StokesProblem<dim>::newton_iteration()
           double g3 = residual;
           const double g1 = residual_old;
 
-          for(unsigned int m=0; m<7; ++m)
+          for(unsigned int m=0; m<20; ++m)
           {
             alpha3 *= 0.5;
             locally_owned_solution_tmp = locally_owned_solution;
@@ -3011,8 +3017,9 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
 
     ar &step_number;
     ar &runtime;
-    AssertDimension(step_number, step_number_old);
-    (void)step_number_old;
+    if(step_number_old !=0)
+      AssertDimension(step_number, step_number_old);
+
   }
   pcout<<" loaded checkpoint from step: "<<step_number<<" runtime: "<<runtime<<std::endl;
 }
@@ -3030,11 +3037,11 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number = 2000;
-    const unsigned int output_interval = 10;
+    const unsigned int max_step_number =3000;
+    const unsigned int output_interval = 20;
     const unsigned int checkpoint_output_interval = 20;
 
-    const bool start_from_checkpoint = false;// false;
+    const bool start_from_checkpoint = false; //true;// false;// false;
 
     if(!start_from_checkpoint)
       {
@@ -3051,7 +3058,7 @@ void StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 20;
+      step_number = 1200+20;
       load_checkpoint(step_number, runtime);
     }
 
