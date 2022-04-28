@@ -798,16 +798,16 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
+  const double G      = 2.000000e+01; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 8.000e+00; // sensible heat / surface tension (AC/CH)
   const double one_over_Pi_T = 1.0 / Pi_T;
-  const double Pi_eta = 1.101074e+09; // sensible heat / visicosity 
+  const double Pi_eta = 1.6e+01; // sensible heat / visicosity 
   const double one_over_Pi_eta = 1.0 / Pi_eta;
-  const double Ste    = 1.252695e-02; // Stefan number
+  const double Ste    = 4.000e-0; // Stefan number
   const double one_over_Ste = 1.0 / Ste;
-  const double We     = 9.801738e-07; // Weber number
+  const double We     = 1.250000e-01; // Weber number
   const double one_over_We = 1./ We; 
-  const double Re     = 7.428828e-02; // Reynolds number
+  const double Re     = 2.500000e-01; // Reynolds number
   const double one_over_Re = 1.0/Re;
   const double Pe     = 1.000000e+00; // Peclet number
   const double one_over_Pe = 1.0/Pe;
@@ -989,9 +989,9 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eps(0.04)
   , test_case(testcase)
   , n_refinement(6)
-  , density_s(9.162000e-01)
-  , density_l(1.)
-  , density_g(1.292200e-03)
+  , density_s(1.)
+  , density_l(0.9)
+  , density_g(0.01)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
@@ -999,11 +999,11 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
-  , cs(4.899618e-01)
-  , cg(2.404398e-01)
+  , cs(0.5)
+  , cg(0.25)
   , eta_l(1.)
-  , eta_s(1.000000e+02)
-  , eta_g(9.670022e-03)
+  , eta_s(1.000000e+01)
+  , eta_g(0.01*eta_l)
   , surface_tension_phi_ch(1)
   , surface_tension_psi_ac(1)
   , lambda_phi(InlineFunctions::compute_lambda_from_surface_tension(
@@ -1017,7 +1017,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
       surface_tension_psi_ac,
       eps)) /*which density should be used?*/
   , mobility_phi(1e-4)
-  , mobility_psi(1e0)
+  , mobility_psi(1e-1)
   , latent_heat(1.)
   , melting_t(273.)
   , thermal_diffusivity_l(
@@ -1030,7 +1030,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , static_contact_angle(numbers::PI / 2.)
   , one_over_wall_relaxation_gamma(0.)
   , wall_velocity(Tensor<1, dim>())
-  , use_adaptive_refinement(false)
+  , use_adaptive_refinement(true)
   , min_mesh_size(0.01)
   , max_mesh_size(0.5)
 {
@@ -2559,20 +2559,20 @@ void StokesProblem<dim>::newton_iteration()
       assemble_system(assemble_matrix);
       {
         TimerOutput::Scope t(computing_timer, "Direct Solve");
-        try
-          {
-            Timer timer(mpi_communicator);
-            preconditioner.initialize(system_matrix);
-            solver.solve(system_matrix,
-                         newton_update,
-                         system_rhs,
-                         preconditioner);
+        // try
+        //   {
+        //     Timer timer(mpi_communicator);
+        //     preconditioner.initialize(system_matrix);
+        //     solver.solve(system_matrix,
+        //                  newton_update,
+        //                  system_rhs,
+        //                  preconditioner);
 
-            pcout << " cg number of iterations: " << solver_control.last_step()
-                  << " cg solve time: "<< timer.wall_time()
-                  << std::endl;
-          }
-        catch (const std::exception &exc)
+        //     pcout << " cg number of iterations: " << solver_control.last_step()
+        //           << " cg solve time: "<< timer.wall_time()
+        //           << std::endl;
+        //   }
+        // catch (const std::exception &exc)
           {
             Timer timer(mpi_communicator);
             pcout << " cg failed, use direct solver: " << std::endl;
@@ -2596,10 +2596,10 @@ void StokesProblem<dim>::newton_iteration()
       locally_owned_solution.add(alpha, newton_update);
       current_solution = locally_owned_solution;
 
-      {
-        locally_relevant_solution = current_solution;
-        output_results(1000000+k);
-      }
+      // {
+      //   locally_relevant_solution = current_solution;
+      //   output_results(1000000+k);
+      // }
       
       residual_old = residual;
       // assemble_system(false);
@@ -3072,7 +3072,7 @@ void StokesProblem<dim>::run()
     double runtime           = 0.;
 
     const unsigned int max_step_number =3000;
-    const unsigned int output_interval = 1;
+    const unsigned int output_interval = 5;
     const unsigned int checkpoint_output_interval = 20;
 
     const bool start_from_checkpoint = false; //true;// false;// false;
@@ -3105,7 +3105,7 @@ void StokesProblem<dim>::run()
     while (step_number < max_step_number)
       {
         old_timestep     = present_timestep;
-        present_timestep = std::min(fix_timestep, (1e-7) * std::pow(1.05, step_number));        
+        present_timestep = std::min(fix_timestep, (1e-5) * std::pow(1.05, step_number));        
 
         step_number ++;
         runtime += present_timestep;
