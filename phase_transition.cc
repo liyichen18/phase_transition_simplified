@@ -542,6 +542,34 @@ move_file(const std::string &old_name, const std::string &new_name)
 namespace InitialConditions
 {
 
+  template <int dim>
+  class InitialTemperature : public Function<dim>
+  {
+  public:
+    InitialTemperature(const double   initial_t,
+                          const Extractors<dim> &ex)
+      : Function<dim>(dim + 6)
+      , initial_t(initial_t)
+      , extractors(ex)
+    {}
+
+    virtual double
+    value(const Point<dim> &p, const unsigned int component = 0) const override;
+
+    private:
+    const double initial_t;
+    const Extractors<dim> &extractors;
+  };
+
+  template <int dim>
+  double
+  InitialTemperature<dim>::value(const Point<dim>  &,
+                                 const unsigned int comp) const
+  {
+    if(comp == extractors.temperature.component)
+      return initial_t;
+  }
+
 
   template <int dim>
   class InitialValues : public Function<dim>
@@ -798,14 +826,14 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 2.000000e+01; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 8.000e+00; // sensible heat / surface tension (AC/CH)
+  const double G      = 2.000000e+1; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 8.000e+1; // sensible heat / surface tension (AC/CH)
   const double one_over_Pi_T = 1.0 / Pi_T;
-  const double Pi_eta = 1.6e+01; // sensible heat / visicosity 
+  const double Pi_eta = 1.6e+03; // sensible heat / visicosity 
   const double one_over_Pi_eta = 1.0 / Pi_eta;
   const double Ste    = 4.000e-0; // Stefan number
   const double one_over_Ste = 1.0 / Ste;
-  const double We     = 1.250000e-01; // Weber number
+  const double We     = 1.250000e-02; // Weber number
   const double one_over_We = 1./ We; 
   const double Re     = 2.500000e-01; // Reynolds number
   const double one_over_Re = 1.0/Re;
@@ -990,12 +1018,12 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , test_case(testcase)
   , n_refinement(6)
   , density_s(1.)
-  , density_l(0.9)
-  , density_g(0.01)
+  , density_l(9.e-1)
+  , density_g(0.01*density_l)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(5e-3)
+  , present_timestep(1e-3)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
@@ -1016,7 +1044,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
       density_s,
       surface_tension_psi_ac,
       eps)) /*which density should be used?*/
-  , mobility_phi(1e-4)
+  , mobility_phi(1e-5)
   , mobility_psi(1e-1)
   , latent_heat(1.)
   , melting_t(273.)
@@ -1904,7 +1932,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               jxwq *= quadrature_points[q][0];
               const double one_over_r = 1.0 / quadrature_points[q][0];
               
-#endif              
+#endif
               // ts: theta star
               const double c1           = 1.-theta;
               const double phi_ch_ts    = theta * phi_ch_star[q] + c1 * phi_ch_n[q];
@@ -2457,7 +2485,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                       }
                   }
               } // test case
-# if 0
+# if 1
             {
               const auto is_not_selected_component =
                 [&](const unsigned int comp) {
@@ -2522,12 +2550,12 @@ void StokesProblem<dim>::newton_iteration()
   pcout<< "Newton iteration" << std::endl;
 
   // set to 1 for testing
-  const unsigned int max_iter = 50;
+  const unsigned int max_iter = 15;
   bool assemble_matrix = false;
   assemble_system(assemble_matrix);
   const double initial_residual = system_rhs.l2_norm();
   double residual = initial_residual;
-  double residual_old = initial_residual;
+  double residual_old = initial_residual + 1.;
   double alpha = 1.;
 
   pcout << "initial residual=" << residual << std::endl;
@@ -2602,7 +2630,7 @@ void StokesProblem<dim>::newton_iteration()
       // }
       
       residual_old = residual;
-      // assemble_system(false);
+      assemble_system(false);
       residual = system_rhs.l2_norm();
       pcout << "k= " << k << "  residual = " << residual <<  std::endl;
 
@@ -2615,7 +2643,7 @@ void StokesProblem<dim>::newton_iteration()
           double g3 = residual;
           const double g1 = residual_old;
 
-          for(unsigned int m=0; m<20; ++m)
+          for(unsigned int m=0; m<30; ++m)
           {
             alpha3 *= 0.5;
             locally_owned_solution_tmp = locally_owned_solution;
@@ -2623,7 +2651,7 @@ void StokesProblem<dim>::newton_iteration()
             current_solution = locally_owned_solution_tmp;
             assemble_system(false);
             g3 = system_rhs.l2_norm();
-            pcout<<" m = " << m << " g3 = "<<residual<<" alpha3 = "<<alpha3<<std::endl;
+            pcout<<" m = " << m << " g3 = "<<g3<<" alpha3 = "<<alpha3<<std::endl;
             if(g3 < residual_old)
               break;
           }
@@ -3088,6 +3116,31 @@ void StokesProblem<dim>::run()
 #endif
 
         setup_initial_condition();
+
+        {
+          // relaxation of psi and phi
+          VectorType tmp_initial_sol;
+
+          tmp_initial_sol.reinit(dof_handler.locally_owned_dofs(),
+                                 mpi_communicator);
+          tmp_initial_sol = locally_relevant_solution;
+          ComponentMask temperature_mask(fe.n_components(), false);
+          temperature_mask.set(extractors.temperature.component, true);
+          VectorTools::interpolate(
+            dof_handler,
+            Functions::ConstantFunction<dim>(melting_t, fe.n_components()),
+            tmp_initial_sol,
+            temperature_mask);
+          // constraints_boundary.distribute(tmp_initial_sol);
+          locally_relevant_solution = tmp_initial_sol;
+          old_solution              = locally_relevant_solution;
+          old_old_solution          = locally_relevant_solution;
+          current_solution          = old_solution;
+          output_results(0);
+          newton_iteration();
+          output_results(1);
+          exit(0);
+        }
       }
     else
     {
