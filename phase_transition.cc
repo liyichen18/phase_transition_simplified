@@ -826,19 +826,32 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 2.000000e+1; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 8.000e+1; // sensible heat / surface tension (AC/CH)
-  const double one_over_Pi_T = 1.0 / Pi_T;
-  const double Pi_eta = 1.6e+03; // sensible heat / visicosity 
-  const double one_over_Pi_eta = 1.0 / Pi_eta;
-  const double Ste    = 4.000e-0; // Stefan number
-  const double one_over_Ste = 1.0 / Ste;
-  const double We     = 1.250000e-02; // Weber number
-  const double one_over_We = 1./ We; 
-  const double Re     = 2.500000e-01; // Reynolds number
-  const double one_over_Re = 1.0/Re;
+  const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 1.452778e+01; // sensible heat / surface tension (AC/CH)
+  const double Pi_eta = 1.101074e+03; // sensible heat / visicosity
+  const double Ste    = 1.252695e-02; // Stefan number
+  const double We     = 9.801738e-04; // Weber number
+  const double Re     = 7.428828e-02; // Reynolds number
   const double Pe     = 1.000000e+00; // Peclet number
+
   const double one_over_Pe = 1.0/Pe;
+  const double one_over_Pi_T = 1.0 / Pi_T;
+  const double one_over_Re = 1.0/Re;
+  const double one_over_We = 1./ We; 
+  const double one_over_Ste = 1.0 / Ste;
+  const double one_over_Pi_eta = 1.0 / Pi_eta;
+  void print_dimensionless_groups()
+  {
+    ConditionalOStream pcout(std::cout, (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0));
+    pcout<< " G: "<< G << std::endl
+    << " Pi_T: "<< Pi_T << std::endl
+    << " Pi_eta: "<< Pi_eta << std::endl
+    << " Ste: "<< Ste << std::endl
+    << " We: "<< We << std::endl
+    << " Re: "<< Re << std::endl
+    << " Pe: "<< Pe << std::endl;
+
+  }
 } // namespace DimensionlessGroups
 
 template <int dim>
