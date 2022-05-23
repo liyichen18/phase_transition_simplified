@@ -1030,23 +1030,23 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eps(0.04)
   , test_case(testcase)
   , n_refinement(6)
-  , density_s(1.)
-  , density_l(9.e-1)
-  , density_g(0.01*density_l)
+  , density_s(0.9)
+  , density_l(1.)
+  , density_g(0.5*density_l)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(1e-3)
+  , present_timestep(5e-3)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
-  , cs(0.5)
-  , cg(0.25)
+  , cs(4.899618e-01)
+  , cg(2.404398e-01)
   , eta_l(1.)
-  , eta_s(1.000000e+01)
+  , eta_s(1.)
   , eta_g(0.01*eta_l)
   , surface_tension_phi_ch(1)
-  , surface_tension_psi_ac(1)
+  , surface_tension_psi_ac(0.1)
   , lambda_phi(InlineFunctions::compute_lambda_from_surface_tension(
       density_l,
       density_g,
@@ -1057,14 +1057,14 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
       density_s,
       surface_tension_psi_ac,
       eps)) /*which density should be used?*/
-  , mobility_phi(1e-5)
-  , mobility_psi(1e-1)
+  , mobility_phi(1e-4)
+  , mobility_psi(1e-0)
   , latent_heat(1.)
   , melting_t(273.)
   , thermal_diffusivity_l(
       1.) // thermal_diffusivity_l = thermal_conductivity/(density_l*cl)
   , thermal_conductivity(1.)
-  , initial_temperature(melting_t+20.)
+  , initial_temperature(melting_t-2.)
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
@@ -1076,6 +1076,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , max_mesh_size(0.5)
 {
   print_variables();
+  DimensionlessGroups::print_dimensionless_groups();
 }
 
 template <int dim>
@@ -2056,6 +2057,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const double w_prime_phi_ch_ts = InlineFunctions::w_prime(phi_ch_ts, eps);
               const double w_prime_prime_phi_ch_ts = InlineFunctions::w_prime_prime(phi_ch_ts, eps);
               const double w_prime_prime_psi_ac_ts = InlineFunctions::w_prime_prime(psi_ac_ts, eps);
+              const double artificial_diffusion_coefficient
+              = InlineFunctions::r(0.2) - InlineFunctions::r(std::min(phi_ch_n[q], 0.2));
 
               const Tensor<2,dim> gamma_ts = lambda_phi * outer_product(grad_phi_ch_ts, grad_phi_ch_ts)
                   + r_phi_ch_ts * lambda_psi * outer_product(grad_psi_ac_ts, grad_psi_ac_ts);
@@ -2210,7 +2213,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                   ) * shape_mu_psi_ac[i];
                           //  term iv
                           mat += - (r_prime_phi_ch_ts * shape_phi_ch_theta[j] * lambda_psi * grad_psi_ac_ts
-                                    + r_phi_ch_ts * lambda_psi * grad_shape_psi_ac_theta[j]) * grad_shape_mu_psi_ac[i]
+                                    + (r_phi_ch_ts + artificial_diffusion_coefficient) * lambda_psi * grad_shape_psi_ac_theta[j]) * grad_shape_mu_psi_ac[i]
                               - lambda_psi * shape_rho_theta[j] * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i]
                               - lambda_psi * rho_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i]
                               - lambda_psi * rho_ts * r_phi_ch_ts * (grad_shape_psi_ac_theta[j] * grad_inv_rho_ts) * shape_mu_psi_ac[i]
@@ -2307,7 +2310,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (r_phi_ch_ts * lambda_psi * w_prime_psi_ac_ts + DimensionlessGroups::We * pressure_star[q] * inv_rho_partial_psi_ac_ts
                          ) * shape_mu_psi_ac[i];
                   //  term iv
-                  rhs += lambda_psi * r_phi_ch_ts * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i])
+                  rhs += lambda_psi * (r_phi_ch_ts + artificial_diffusion_coefficient) * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i])
                       +  lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i];
 
                   // w6
@@ -2563,7 +2566,7 @@ void StokesProblem<dim>::newton_iteration()
   pcout<< "Newton iteration" << std::endl;
 
   // set to 1 for testing
-  const unsigned int max_iter = 15;
+  const unsigned int max_iter = 8;
   bool assemble_matrix = false;
   assemble_system(assemble_matrix);
   const double initial_residual = system_rhs.l2_norm();
@@ -2595,7 +2598,7 @@ void StokesProblem<dim>::newton_iteration()
   VectorType locally_owned_solution_tmp(system_rhs);
   locally_owned_solution = current_solution;
   for (unsigned int k = 1; k <= max_iter; ++k) {
-      if (residual < 1.e-6 * initial_residual)
+      if (residual < 1.e-8 )
         break;
       assemble_system(assemble_matrix);
       {
@@ -3112,9 +3115,9 @@ void StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number =3000;
-    const unsigned int output_interval = 5;
-    const unsigned int checkpoint_output_interval = 20;
+    const unsigned int max_step_number =6000;
+    const unsigned int output_interval = 10;
+    const unsigned int checkpoint_output_interval = 100;
 
     const bool start_from_checkpoint = false; //true;// false;// false;
 
