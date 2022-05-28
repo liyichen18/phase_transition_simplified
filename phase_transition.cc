@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-// #define USE_AXISYMMETRY // axisymmetric implementation
+#define USE_AXISYMMETRY // axisymmetric implementation
 
 namespace LA
 {
@@ -282,7 +282,16 @@ namespace InlineFunctions
       return tmp * lambda;
 
     }
-  }  
+  }
+
+  inline void
+  limit_phase_field_function(double &pf_function)
+  {
+    if (pf_function < 0.)
+      pf_function = 0.;
+    else if (pf_function > 1.)
+      pf_function = 1.;
+  }
 
 } //namespace inline funcitons
 
@@ -949,8 +958,9 @@ private:
     const double lambda_phi, lambda_psi;
     const double mobility_phi, mobility_psi;
     const double latent_heat, melting_t;
-    const double thermal_diffusivity_l;
-    const double thermal_conductivity;
+    const double k_l; // thermal_conductivity
+    const double k_s;
+    const double k_g;
     const double initial_temperature; //Ta
     const double boundary_temperature; 
     const double ambient_pressure;
@@ -1061,9 +1071,9 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , mobility_psi(1e-0)
   , latent_heat(1.)
   , melting_t(273.)
-  , thermal_diffusivity_l(
-      1.) // thermal_diffusivity_l = thermal_conductivity/(density_l*cl)
-  , thermal_conductivity(1.)
+  , k_l(1.) //  thermal_conductivity(1.)
+  , k_s(3.994602e+00)
+  , k_g(4.383266e-02)
   , initial_temperature(melting_t-2.)
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
@@ -2043,6 +2053,22 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const double eta_partial_phi_ch_ts = InlineFunctions::g_pratial_phi(psi_ac_ts, eta_l, eta_s, eta_g);
               const double eta_partial_psi_ac_ts = InlineFunctions::g_pratial_psi(phi_ch_ts, eta_l, eta_s);
 
+              // k: the thermal conductivity
+              const double k_ts = InlineFunctions::f(phi_ch_ts,
+                                                     psi_ac_ts,
+                                                     k_l,
+                                                     k_s,
+                                                     k_g); // thermal_conductivity
+              const double k_partial_phi_ch_ts = InlineFunctions::f_partial_phi(phi_ch_ts,
+                                                                             psi_ac_ts,
+                                                                             k_l,
+                                                                             k_s,
+                                                                             k_g);
+              const double k_partial_psi_ac_ts = InlineFunctions::f_partial_psi(phi_ch_ts,
+                                                                              psi_ac_ts,
+                                                                              k_l,
+                                                                              k_s);
+
               // E_theta_star
               const Tensor<2,dim> e_ts = grad_vel_ts + transpose(grad_vel_ts) -  2./3. * div_vel_ts * id_tensor;
 
@@ -2245,7 +2271,10 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                  -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
                                  -  eta_ts * scalar_product(e_ts, grad_shape_vel[j]) * theta * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
                           //  term iii
-                          mat += thermal_conductivity * grad_shape_temperature_theta[j] * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
+                          mat += ( k_ts * grad_shape_temperature_theta[j]
+                                   + (k_partial_phi_ch_ts * shape_phi_ch_theta[j] 
+                                    + k_partial_psi_ac_ts * shape_psi_ac_theta[j]) * grad_temperature_ts )
+                                  * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
                           //  term iv
                           mat += latent_heat/melting_t * (r_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_prime_phi_ch_ts * h_ts
                                                           + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j] * h_ts
@@ -2331,7 +2360,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           + mobility_psi * (mu_psi_ac_star[q] * mu_psi_ac_star[q]) * DimensionlessGroups::one_over_Pi_T
                           + eta_ts * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
                   //  term iii
-                  rhs += - thermal_conductivity * grad_temperature_ts * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
+                  rhs += - k_ts * grad_temperature_ts * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
                   //  term iv
                   rhs += - (latent_heat * r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
                             - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
@@ -2501,7 +2530,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                       }
                   }
               } // test case
-# if 1
+# if 0
             {
               const auto is_not_selected_component =
                 [&](const unsigned int comp) {
@@ -2511,7 +2540,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                     || comp == extractors.pressure.component 
                     || (comp >= extractors.velocities.first_vector_component 
                         && comp < extractors.velocities.first_vector_component + dim) 
-                    || comp == extractors.temperature.component
+                    // || comp == extractors.temperature.component
                     || comp == extractors.phi_ch.component
                     || comp == extractors.mu_phi_ch.component
                     );
@@ -2946,9 +2975,14 @@ void StokesProblem<dim>::print_variables() const
         << " latent_heat:          " << latent_heat << std::endl
         << " melting_t:            " << melting_t << std::endl
         << " initial_temperature:  " << initial_temperature << std::endl
-        << " thermal_conductivity: " << thermal_conductivity << std::endl
+        << " k_l:                  " << k_l << std::endl
+        << " k_s:                  " << k_s << std::endl
+        << " k_g:                  " << k_g << std::endl
         << " ambient_pressure:     " << ambient_pressure << std::endl
-        << " number of MPI processes: " << Utilities::MPI::n_mpi_processes(mpi_communicator) << std::endl;
+        << " num of MPI processes: " << Utilities::MPI::n_mpi_processes(mpi_communicator) << std::endl;
+#ifdef USE_AXISYMMETRY
+  pcout << " axisymetric:          " << "true" << std::endl;
+#endif    
 
 }
 
@@ -3133,30 +3167,30 @@ void StokesProblem<dim>::run()
 
         setup_initial_condition();
 
-        {
-          // relaxation of psi and phi
-          VectorType tmp_initial_sol;
+        // {
+        //   // relaxation of psi and phi
+        //   VectorType tmp_initial_sol;
 
-          tmp_initial_sol.reinit(dof_handler.locally_owned_dofs(),
-                                 mpi_communicator);
-          tmp_initial_sol = locally_relevant_solution;
-          ComponentMask temperature_mask(fe.n_components(), false);
-          temperature_mask.set(extractors.temperature.component, true);
-          VectorTools::interpolate(
-            dof_handler,
-            Functions::ConstantFunction<dim>(melting_t, fe.n_components()),
-            tmp_initial_sol,
-            temperature_mask);
-          // constraints_boundary.distribute(tmp_initial_sol);
-          locally_relevant_solution = tmp_initial_sol;
-          old_solution              = locally_relevant_solution;
-          old_old_solution          = locally_relevant_solution;
-          current_solution          = old_solution;
-          output_results(0);
-          newton_iteration();
-          output_results(1);
-          exit(0);
-        }
+        //   tmp_initial_sol.reinit(dof_handler.locally_owned_dofs(),
+        //                          mpi_communicator);
+        //   tmp_initial_sol = locally_relevant_solution;
+        //   ComponentMask temperature_mask(fe.n_components(), false);
+        //   temperature_mask.set(extractors.temperature.component, true);
+        //   VectorTools::interpolate(
+        //     dof_handler,
+        //     Functions::ConstantFunction<dim>(melting_t, fe.n_components()),
+        //     tmp_initial_sol,
+        //     temperature_mask);
+        //   // constraints_boundary.distribute(tmp_initial_sol);
+        //   locally_relevant_solution = tmp_initial_sol;
+        //   old_solution              = locally_relevant_solution;
+        //   old_old_solution          = locally_relevant_solution;
+        //   current_solution          = old_solution;
+        //   output_results(0);
+        //   newton_iteration();
+        //   output_results(1);
+        //   exit(0);
+        // }
       }
     else
     {
@@ -3194,6 +3228,23 @@ void StokesProblem<dim>::run()
         // theta = 0.5;
 
         newton_iteration();
+
+        // {
+        //   // limit psi
+        //   std::vector<unsigned int> global_index_to_component(dof_handler.n_dofs(), numbers::invalid_unsigned_int);
+        //   map_dofs_to_component(dof_handler, global_index_to_component);
+        //   for (unsigned int i = 0; i < dof_handler.n_dofs(); ++i)
+        //     if (locally_relevant_solution.in_local_range(i))
+        //       {
+        //         const unsigned int component_i = global_index_to_component[i];
+        //         if (component_i == extractors.psi_ac.component)
+        //           {
+        //             double psi_i = locally_relevant_solution(i);
+        //             InlineFunctions::limit_phase_field_function(psi_i);
+        //             locally_relevant_solution(i) = psi_i;
+        //           }
+        //       }
+        // }
 
         if (step_number % output_interval == 0)
           {
