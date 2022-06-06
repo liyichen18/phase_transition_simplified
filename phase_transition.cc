@@ -880,6 +880,7 @@ private:
     using VectorType = LA::MPI::BlockVector;
     using MatrixType = LA::MPI::BlockSparseMatrix;
 #endif
+    void set_boundary_ids();
     void make_grid();
     void setup_system();
     void setup_block_system();
@@ -978,6 +979,9 @@ private:
 
     const double min_mesh_size;
     const double max_mesh_size;   
+
+    std::string output_dir;
+    std::string checkpoints_dir;
 
 };
 
@@ -1133,6 +1137,8 @@ void StokesProblem<dim>::make_grid()
         const bool   colorize = true;
         const double width = 2.;
         GridGenerator::hyper_cube(triangulation, 0., width, colorize);
+        // note that some boundary ids are not saved in the checkpoints.
+        set_boundary_ids();
         if(use_adaptive_refinement)
           triangulation.refine_global(3);
         else
@@ -1143,7 +1149,7 @@ void StokesProblem<dim>::make_grid()
     default:
       Assert(false, ExcNotImplemented("Setting up iniital grid: Please choose the right test case"));
     }
-                                       
+                                         
   const unsigned int max_refinement_level = n_refinement;
   if (use_adaptive_refinement)
     {
@@ -1206,6 +1212,32 @@ void StokesProblem<dim>::make_grid()
   print_mesh_info(triangulation);
   hmin = GridTools::minimal_cell_diameter(triangulation, mapping)/std::sqrt(dim*1.);
   pcout<<" hmin = "<<hmin<<std::endl;
+}
+
+template <int dim>
+void StokesProblem<dim>::
+set_boundary_ids()
+{
+switch  (test_case)
+    {
+    case TestCase::test1: {
+        break;
+      }
+    case TestCase::test2: {
+        break;
+      }
+    case TestCase::test3: {
+        for(auto &cell : triangulation.active_cell_iterators())
+          for(const auto &f : cell->face_indices())
+            if(cell->face(f)->at_boundary())
+              if(cell->face(f)->boundary_id() == 2)
+                cell->face(f)->set_all_boundary_ids(wall_boundary_id);
+        break;
+      }      
+    default:
+      Assert(false, ExcNotImplemented("Setting up iniital grid: Please choose the right test case"));
+    }  
+
 }
 
 template <int dim>
@@ -2950,7 +2982,7 @@ void StokesProblem<dim>::output_results(const unsigned int cycle) const
 
     // have to create the directory output
     data_out.write_vtu_with_pvtu_record(
-        "./output/", "solution", cycle, mpi_communicator, 5, 1);
+        output_dir, "solution", cycle, mpi_communicator, 5, 1);
 }
 
 template <int dim>
@@ -3042,7 +3074,7 @@ StokesProblem<dim>::save_checkpoint(const unsigned int step_number,
                                     const double       runtime)
 {
   TimerOutput::Scope t(computing_timer, "save checkpoints");
-  pcout<<" save checkpoint\n"<<std::flush;
+  pcout<<" save checkpoint to \n"<< checkpoints_dir + "restart.mesh" <<std::flush;
   {
     // mesh and vectors
     std::vector<const VectorType *> solutions(3);
@@ -3061,12 +3093,12 @@ StokesProblem<dim>::save_checkpoint(const unsigned int step_number,
       dof_handler);
 
     solution_trans.prepare_for_serialization(solutions);
-    triangulation.save("./checkpoints/restart.mesh");
+    triangulation.save(checkpoints_dir + "restart.mesh");
   }
 
   {
     // other parameters
-    std::ofstream ofs("./checkpoints/restart.dat");
+    std::ofstream ofs(checkpoints_dir + "restart.dat");
     boost::archive::binary_oarchive ar(ofs);
 
     ar & step_number;
@@ -3090,7 +3122,8 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
     GridGenerator::hyper_cube(triangulation, 0., width, colorize);
     pcout << " n_levels: " << triangulation.n_levels() << std::endl;
 
-    triangulation.load("./checkpoints/restart" + step_number_string + ".mesh");
+    triangulation.load(checkpoints_dir + "restart-" + step_number_string + ".mesh");
+    set_boundary_ids();
     print_mesh_info(triangulation);
     dof_handler.distribute_dofs(fe);
     pcout << " n_dofs: " << dof_handler.n_dofs() << std::endl;
@@ -3124,7 +3157,7 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
   {
     // load other parameters:
     // std::ifstream                   ifs("checkpoint.dat");
-    std::ifstream                   ifs("./checkpoints/restart" + step_number_string + ".dat");
+    std::ifstream                   ifs(checkpoints_dir + "restart-" + step_number_string + ".dat");
     boost::archive::binary_iarchive ar(ifs);
 
     ar &step_number;
@@ -3137,8 +3170,20 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
 }
 
 template <int dim>
-void StokesProblem<dim>::run()
+void
+StokesProblem<dim>::run()
 {
+  const std::string prefix = "tmp31/";
+
+  output_dir      = "./output/" + prefix;
+  checkpoints_dir = "./checkpoints/" + prefix;
+  if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+    {
+      const auto tmp  = system(("mkdir " + output_dir).c_str());
+      const auto tmp1 = system(("mkdir " + checkpoints_dir).c_str());
+      (void)tmp;
+      (void)tmp1;
+    }
 #ifdef USE_PETSC_LA
     pcout << "Running using PETSc." << std::endl;
 #else
@@ -3259,11 +3304,11 @@ void StokesProblem<dim>::run()
       {
         if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
         {
-          const std::string filename = "./checkpoints/restart" + Utilities::int_to_string(step_number, 5);
-          move_file("./checkpoints/restart.mesh", filename + ".mesh");
-          move_file("./checkpoints/restart.mesh.info", filename + ".mesh.info");
-          move_file("./checkpoints/restart.mesh_fixed.data", filename + ".mesh_fixed.data");
-          move_file("./checkpoints/restart.dat", filename + ".dat");
+          const std::string filename = checkpoints_dir + "restart-" + Utilities::int_to_string(step_number, 5);
+          move_file(checkpoints_dir + "restart.mesh", filename + ".mesh");
+          move_file(checkpoints_dir + "restart.mesh.info", filename + ".mesh.info");
+          move_file(checkpoints_dir + "restart.mesh_fixed.data", filename + ".mesh_fixed.data");
+          move_file(checkpoints_dir + "restart.dat", filename + ".dat");
         }
       }
 
@@ -3272,8 +3317,6 @@ void StokesProblem<dim>::run()
       }
     computing_timer.print_summary();
     computing_timer.reset();
-
-
 }
 } // namespace Step55
 
