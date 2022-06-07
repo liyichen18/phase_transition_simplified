@@ -705,8 +705,11 @@ namespace InitialConditions
               {
               case 2: //2D case
                 {
-                  center = Point<dim>(0,0);
-                  r = std::sqrt(x*x + y*y);
+                  // const double width = 0.9631571754 * R;
+                  const double height = 0.7310608704 * R;
+                  const double center_y = R - height;
+                  center = Point<dim>(0, -center_y);
+                  r = p.distance(center);
                   break;
                 }
               case 3: //3D case
@@ -719,7 +722,7 @@ namespace InitialConditions
             const double d = R - r;
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.2; // has to below melting temperature
+            const double initial_solid_layer = 0.035; // has to below melting temperature
             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
@@ -950,6 +953,7 @@ private:
     double theta = 1.;
 
     const double density_s, density_l, density_g;
+    const double product_density_g_c_g;  // experiment: rho_g*c_g
     const double inv_density_s, inv_density_l, inv_density_g;
     double present_timestep, old_timestep, fix_timestep;
     const double cl,cs,cg;
@@ -970,7 +974,7 @@ private:
 
     double hmin;
 
-    const unsigned int wall_bc_id = 11;
+    const unsigned int wall_boundary_id = 11;
 
     const double static_contact_angle; // theta_s
     const double one_over_wall_relaxation_gamma;
@@ -1041,12 +1045,13 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                     TimerOutput::wall_times)
   , component_ids(ComponentIndices<dim>())
   , extractors(ComponentIndices<dim>())
-  , eps(0.04)
+  , eps(0.02)
   , test_case(testcase)
-  , n_refinement(6)
-  , density_s(0.9)
+  , n_refinement(7)
+  , density_s(9.162000e-01)
   , density_l(1.)
   , density_g(0.5*density_l)
+  , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
@@ -1055,10 +1060,10 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , fix_timestep(present_timestep)
   , cl(1.)
   , cs(4.899618e-01)
-  , cg(2.404398e-01)
+  , cg(product_density_g_c_g/density_g)
   , eta_l(1.)
-  , eta_s(1.)
-  , eta_g(0.01*eta_l)
+  , eta_s(100.)
+  , eta_g(9.670022e-03*eta_l)
   , surface_tension_phi_ch(1)
   , surface_tension_psi_ac(0.1)
   , lambda_phi(InlineFunctions::compute_lambda_from_surface_tension(
@@ -1074,7 +1079,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , mobility_phi(1e-4)
   , mobility_psi(1e-0)
   , latent_heat(1.)
-  , melting_t(273.)
+  , melting_t(273.15)
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
@@ -1082,7 +1087,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
-  , static_contact_angle(numbers::PI / 2.)
+  , static_contact_angle(1.298504916) // 74.4 degrees
   , one_over_wall_relaxation_gamma(0.)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
@@ -1519,7 +1524,7 @@ void StokesProblem<dim>::make_boundary_constraints()
           // temperature = boundary_temperature
           // if you want to use wall relaxation, you need to set the
           // boundary id to wall_bc_id;
-          const types::boundary_id bc_id = 2;
+          const types::boundary_id bc_id = wall_boundary_id;
           ComponentMask vel_masked(fe.n_components(), false);
           for(unsigned int d = 0; d < dim; ++d)
             vel_masked.set(extractors.velocities.first_vector_component + d,
@@ -2423,7 +2428,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             for (const auto face_no : cell->face_indices())
               {
                 if (cell->face(face_no)->at_boundary() &&
-                    cell->face(face_no)->boundary_id() == wall_bc_id)
+                    cell->face(face_no)->boundary_id() == wall_boundary_id)
                   {
                     fe_face_values.reinit(cell, face_no);
 #ifdef USE_AXISYMMETRY
@@ -2642,16 +2647,19 @@ void StokesProblem<dim>::newton_iteration()
   SolverControl cn;
   PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
 #else
-  SolverControl                  solver_control(1000, 1e-12);
+  SolverControl                  solver_control(1000, 1e-10);
 
   // TrilinosWrappers::SolverDirect::AdditionalData data;
   // // data.solver_type = "Amesos_Lapack";
   // TrilinosWrappers::SolverDirect solver(solver_control, data);
 
-  TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
+  // TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
 
   // SolverGMRES<VectorType> solver(solver_control);
-  SolverBicgstab<VectorType> solver(solver_control);  
+  // SolverBicgstab<VectorType> solver(solver_control);
+
+  TrilinosWrappers::SolverDirect::AdditionalData data;
+  TrilinosWrappers::SolverDirect                 solver(solver_control, data);
 #endif
 
   assemble_matrix = true;
@@ -2680,9 +2688,9 @@ void StokesProblem<dim>::newton_iteration()
         // catch (const std::exception &exc)
           {
             Timer timer(mpi_communicator);
-            pcout << " cg failed, use direct solver: " << std::endl;
-            TrilinosWrappers::SolverDirect::AdditionalData data;
-            TrilinosWrappers::SolverDirect solver(solver_control, data);
+            // pcout << " cg failed, use direct solver: " << std::endl;
+            // TrilinosWrappers::SolverDirect::AdditionalData data;
+            // TrilinosWrappers::SolverDirect solver(solver_control, data);
             solver.solve(system_matrix, newton_update, system_rhs);
             timer.stop();
             pcout<<" direct solver time: "<<timer.wall_time()<<std::endl;
@@ -3173,7 +3181,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp31/";
+  const std::string prefix = "tmp30/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3190,6 +3198,7 @@ StokesProblem<dim>::run()
     pcout << "Running using Trilinos." << std::endl;
 #endif
     pcout << "n refinement " << n_refinement << ':' << std::endl;
+    pcout << " output_dir: " << output_dir << std::endl;
 
     unsigned int step_number = 0;
     double runtime           = 0.;
