@@ -706,7 +706,7 @@ namespace InitialConditions
               case 2: //2D case
                 {
                   // const double width = 0.9631571754 * R;
-                  const double height = 0.7310608704 * R;
+                  const double height = 0.7155039792 * R;
                   const double center_y = R - height;
                   center = Point<dim>(0, -center_y);
                   r = p.distance(center);
@@ -722,7 +722,7 @@ namespace InitialConditions
             const double d = R - r;
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.035; // has to below melting temperature
+            const double initial_solid_layer = 0.0341; // has to below melting temperature
             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
@@ -1065,7 +1065,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eta_s(100.)
   , eta_g(9.670022e-03*eta_l)
   , surface_tension_phi_ch(1)
-  , surface_tension_psi_ac(0.1)
+  , surface_tension_psi_ac(0.5)
   , lambda_phi(InlineFunctions::compute_lambda_from_surface_tension(
       density_l,
       density_g,
@@ -1087,7 +1087,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
-  , static_contact_angle(1.298504916) // 74.4 degrees
+  , static_contact_angle(1.282315642) // 73.47 degrees
   , one_over_wall_relaxation_gamma(0.)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
@@ -3181,7 +3181,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp30/";
+  const std::string prefix = "tmp32/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3203,7 +3203,7 @@ StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number =6000;
+    const unsigned int max_step_number =2000;
     const unsigned int output_interval = 10;
     const unsigned int checkpoint_output_interval = 100;
 
