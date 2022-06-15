@@ -952,7 +952,7 @@ private:
 
     double theta = 1.;
 
-    const double density_s, density_l, density_g;
+    const double density_l, density_s, density_g;
     const double product_density_g_c_g;  // experiment: rho_g*c_g
     const double inv_density_s, inv_density_l, inv_density_g;
     double present_timestep, old_timestep, fix_timestep;
@@ -1048,8 +1048,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eps(0.02)
   , test_case(testcase)
   , n_refinement(7)
+  , density_l(1.)  
   , density_s(9.162000e-01)
-  , density_l(1.)
   , density_g(0.5*density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
@@ -3119,17 +3119,21 @@ void
 StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
                                    double       &runtime)
 {
-  pcout<<" load checkpoint\n"<<std::flush;
   const unsigned int step_number_old = step_number;
   std::string step_number_string;
   if(step_number != 0)
-    step_number_string = Utilities::int_to_string(step_number, 5);
+    step_number_string = Utilities::int_to_string(step_number, 5);  
+  pcout<<" load checkpoint from: "
+  << (checkpoints_dir + "restart-" + step_number_string + ".mesh")
+  << std::flush;
+  
+
   {
     const bool   colorize = true;
     const double width    = 2.;
     GridGenerator::hyper_cube(triangulation, 0., width, colorize);
     pcout << " n_levels: " << triangulation.n_levels() << std::endl;
-
+    
     triangulation.load(checkpoints_dir + "restart-" + step_number_string + ".mesh");
     set_boundary_ids();
     print_mesh_info(triangulation);
@@ -3203,11 +3207,11 @@ StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number =2000;
+    const unsigned int max_step_number =860;
     const unsigned int output_interval = 10;
-    const unsigned int checkpoint_output_interval = 100;
+    const unsigned int checkpoint_output_interval = 10;
 
-    const bool start_from_checkpoint = false; //true;// false;// false;
+    const bool start_from_checkpoint = false;// false;
 
     if(!start_from_checkpoint)
       {
@@ -3249,7 +3253,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 1200+20;
+      step_number = 800;
       load_checkpoint(step_number, runtime);
     }
 
@@ -3300,7 +3304,8 @@ StokesProblem<dim>::run()
         //       }
         // }
 
-        if (step_number % output_interval == 0)
+        if ((step_number % output_interval == 0)
+        || (step_number > 850 && step_number < 860))
           {
             TimerOutput::Scope t(computing_timer, "output");
             output_results(step_number);
