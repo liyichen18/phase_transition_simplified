@@ -27,6 +27,7 @@
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
 #define USE_AXISYMMETRY // axisymmetric implementation
+#define USE_NEW_R
 
 namespace LA
 {
@@ -108,6 +109,75 @@ namespace InlineFunctions
     else
       return std::pow(phi, 3.) * (10. - 15. * phi + 6. * phi * phi);
   }
+
+  inline
+  double new_r(const double phi, const double alpha)
+  {
+    const auto f = [alpha](const double x) {
+      const double alpha_2 = alpha * alpha;
+      const double alpha_3 = alpha * alpha_2;
+      const double x_3 = x * x * x;
+      return x_3/alpha_2 - 2.*x_3*(x-alpha)/alpha_3 + 3.*x_3*(x-alpha)*(x-alpha)/(alpha_2*alpha_2);
+    };
+    if(phi<=0.)
+      return 0.;
+    else if(phi>=1.)
+      return 1.;
+    else if(phi<alpha && phi>0)
+      return f(phi);
+    else if(phi>=alpha && phi<1.-alpha)
+      return phi;
+    else if(phi>=1.-alpha && phi<1.)
+      return 1. - f(1.-phi);
+    else
+    {
+      Assert(false, ExcNotImplemented("inlinefunction new_r gets called with invalid phi"));
+      return 0.;
+    }
+  }
+
+  inline
+  double new_r_prime(const double phi, const double alpha)
+  {
+    const auto f_prime = [&](const double x) {
+      const double x_2 = x * x;
+      return x_2 * (15.*x_2 - 32.*x + 18.);
+    };
+    if(phi<=0. || phi>=1.)
+      return 0.;
+    else if(phi<alpha && phi>0)
+      return f_prime(phi/alpha);
+    else if(phi>=alpha && phi<1.-alpha)
+      return 1;
+    else if(phi>=1.-alpha && phi<1.)
+      return f_prime((1.-phi)/alpha);
+    else
+    {
+      Assert(false, ExcNotImplemented("inlinefunction new_r_prime gets called with invalid phi"));
+      return 0.;
+    }
+  } 
+
+  inline
+  double new_r_prime_prime(const double phi, const double alpha)
+  {
+    const auto f_prime_prime = [alpha](const double x) {
+      return 12. * x * (3. * alpha - 5. * x) * (alpha - x)/std::pow(alpha, 4.);
+    };
+    if(phi<=0. || phi>=1.)
+      return 0.;
+    else if(phi<alpha && phi>0)
+      return f_prime_prime(phi);
+    else if(phi>=alpha && phi<1.-alpha)
+      return 0;
+    else if(phi>=1.-alpha && phi<1.)
+      return -f_prime_prime(1.-phi);
+    else
+    {
+      Assert(false, ExcNotImplemented("inlinefunction new_r_prime_prime gets called with invalid phi"));
+      return 0.;
+    }
+  } 
 
   inline
   double r_prime(const double phi)
@@ -2108,20 +2178,33 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
               // E_theta_star
               const Tensor<2,dim> e_ts = grad_vel_ts + transpose(grad_vel_ts) -  2./3. * div_vel_ts * id_tensor;
-
+#ifndef USE_NEW_R
               const double r_phi_ch_ts = InlineFunctions::r(phi_ch_ts);
               const double r_psi_ac_ts = InlineFunctions::r(psi_ac_ts);
               const double r_prime_phi_ch_ts = InlineFunctions::r_prime(phi_ch_ts);
               const double r_prime_psi_ac_ts = InlineFunctions::r_prime(psi_ac_ts);
               const double r_prime_prime_phi_ch_ts = InlineFunctions::r_prime_prime(phi_ch_ts);
               const double r_prime_prime_psi_ac_ts = InlineFunctions::r_prime_prime(psi_ac_ts);
+              const double artificial_diffusion_coefficient
+              = InlineFunctions::r(0.2) - InlineFunctions::r(std::min(phi_ch_n[q], 0.2));
+#else
+              const double r_alpha = 0.05;
+              const double r_phi_ch_ts = InlineFunctions::new_r(phi_ch_ts, r_alpha);
+              const double r_psi_ac_ts = InlineFunctions::new_r(psi_ac_ts, r_alpha);
+              const double r_prime_phi_ch_ts = InlineFunctions::new_r_prime(phi_ch_ts, r_alpha);
+              const double r_prime_psi_ac_ts = InlineFunctions::new_r_prime(psi_ac_ts, r_alpha);
+              const double r_prime_prime_phi_ch_ts = InlineFunctions::new_r_prime_prime(phi_ch_ts, r_alpha);
+              const double r_prime_prime_psi_ac_ts = InlineFunctions::new_r_prime_prime(psi_ac_ts, r_alpha);
+              const double artificial_diffusion_coefficient
+              = InlineFunctions::new_r(0.2, r_alpha) - InlineFunctions::new_r(std::min(phi_ch_n[q], 0.2), r_alpha);
+#endif
+
               const double w_psi_ac_ts = InlineFunctions::w(psi_ac_ts, eps);
               const double w_prime_psi_ac_ts = InlineFunctions::w_prime(psi_ac_ts, eps);
               const double w_prime_phi_ch_ts = InlineFunctions::w_prime(phi_ch_ts, eps);
               const double w_prime_prime_phi_ch_ts = InlineFunctions::w_prime_prime(phi_ch_ts, eps);
               const double w_prime_prime_psi_ac_ts = InlineFunctions::w_prime_prime(psi_ac_ts, eps);
-              const double artificial_diffusion_coefficient
-              = InlineFunctions::r(0.2) - InlineFunctions::r(std::min(phi_ch_n[q], 0.2));
+
 
               const Tensor<2,dim> gamma_ts = lambda_phi * outer_product(grad_phi_ch_ts, grad_phi_ch_ts)
                   + r_phi_ch_ts * lambda_psi * outer_product(grad_psi_ac_ts, grad_psi_ac_ts);
@@ -3023,6 +3106,11 @@ void StokesProblem<dim>::print_variables() const
 #ifdef USE_AXISYMMETRY
   pcout << " axisymetric:          " << "true" << std::endl;
 #endif    
+#ifdef USE_NEW_R
+  pcout << " new_r:                " << "true" << std::endl;
+#else
+  pcout << " new_r:                " << "false" << std::endl;   
+#endif
 
 }
 
@@ -3185,7 +3273,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp32/";
+  const std::string prefix = "tmp39/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
