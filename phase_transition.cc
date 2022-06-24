@@ -26,8 +26,8 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-#define USE_AXISYMMETRY // axisymmetric implementation
-#define USE_NEW_R
+// #define USE_AXISYMMETRY // axisymmetric implementation
+// #define USE_NEW_R
 
 namespace LA
 {
@@ -125,9 +125,9 @@ namespace InlineFunctions
       return 1.;
     else if(phi<alpha && phi>0)
       return f(phi);
-    else if(phi>=alpha && phi<1.-alpha)
+    else if(phi>=alpha && phi<=1.-alpha)
       return phi;
-    else if(phi>=1.-alpha && phi<1.)
+    else if(phi>1.-alpha && phi<1.)
       return 1. - f(1.-phi);
     else
     {
@@ -147,9 +147,9 @@ namespace InlineFunctions
       return 0.;
     else if(phi<alpha && phi>0)
       return f_prime(phi/alpha);
-    else if(phi>=alpha && phi<1.-alpha)
+    else if(phi>=alpha && phi<=1.-alpha)
       return 1;
-    else if(phi>=1.-alpha && phi<1.)
+    else if(phi>1.-alpha && phi<1.)
       return f_prime((1.-phi)/alpha);
     else
     {
@@ -168,9 +168,9 @@ namespace InlineFunctions
       return 0.;
     else if(phi<alpha && phi>0)
       return f_prime_prime(phi);
-    else if(phi>=alpha && phi<1.-alpha)
+    else if(phi>=alpha && phi<=1.-alpha)
       return 0;
-    else if(phi>=1.-alpha && phi<1.)
+    else if(phi>1.-alpha && phi<1.)
       return -f_prime_prime(1.-phi);
     else
     {
@@ -776,7 +776,7 @@ namespace InitialConditions
               case 2: //2D case
                 {
                   // const double width = 0.9631571754 * R;
-                  const double height = 0.7155039792 * R;
+                  const double height = R;
                   const double center_y = R - height;
                   center = Point<dim>(0, -center_y);
                   r = p.distance(center);
@@ -792,7 +792,7 @@ namespace InitialConditions
             const double d = R - r;
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.0341; // has to below melting temperature
+            const double initial_solid_layer = 0.1; // has to below melting temperature
             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
@@ -908,13 +908,13 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 1.452778e+01; // sensible heat / surface tension (AC/CH)
-  const double Pi_eta = 1.101074e+03; // sensible heat / visicosity
-  const double Ste    = 1.252695e-02; // Stefan number
-  const double We     = 9.801738e-04; // Weber number
-  const double Re     = 7.428828e-02; // Reynolds number
-  const double Pe     = 1.000000e+00; // Peclet number
+  const double G      = 1.; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 1.; // sensible heat / surface tension (AC/CH)
+  const double Pi_eta = 1.; // sensible heat / visicosity
+  const double Ste    = 1.; // Stefan number
+  const double We     = 1.; // Weber number
+  const double Re     = 1.; // Reynolds number
+  const double Pe     = 1.; // Peclet number
 
   const double one_over_Pe = 1.0/Pe;
   const double one_over_Pi_T = 1.0 / Pi_T;
@@ -1119,8 +1119,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , test_case(testcase)
   , n_refinement(7)
   , density_l(1.)  
-  , density_s(9.162000e-01)
-  , density_g(0.5*density_l)
+  , density_s(1.)
+  , density_g(density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
@@ -1129,13 +1129,13 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
-  , cs(4.899618e-01)
-  , cg(product_density_g_c_g/density_g)
+  , cs(1.)
+  , cg(1.)
   , eta_l(1.)
-  , eta_s(100.)
-  , eta_g(9.670022e-03*eta_l)
-  , surface_tension_phi_ch(1)
-  , surface_tension_psi_ac(0.5)
+  , eta_s(1.)
+  , eta_g(1.)
+  , surface_tension_phi_ch(1.)
+  , surface_tension_psi_ac(1.)
   , lambda_phi(InlineFunctions::compute_lambda_from_surface_tension(
       density_l,
       density_g,
@@ -1149,12 +1149,12 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , mobility_phi(1e-4)
   , mobility_psi(1e-0)
   , latent_heat(1.)
-  , melting_t(273.15)
+  , melting_t(1.)
   , k_l(1.) //  thermal_conductivity(1.)
-  , k_s(3.994602e+00)
-  , k_g(4.383266e-02)
-  , initial_temperature(melting_t-2.)
-  , boundary_temperature(melting_t-2.)
+  , k_s(1.)
+  , k_g(1.)
+  , initial_temperature(0.01)
+  , boundary_temperature(0.01)
   , ambient_pressure(0.)
   , mapping(1)
   , static_contact_angle(1.282315642) // 73.47 degrees
@@ -2510,8 +2510,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             // face loop, assemble moving contact line bc
             for (const auto face_no : cell->face_indices())
               {
-                if (cell->face(face_no)->at_boundary() &&
-                    cell->face(face_no)->boundary_id() == wall_boundary_id)
+                // if (cell->face(face_no)->at_boundary() &&
+                //     cell->face(face_no)->boundary_id() == wall_boundary_id)
+                if(false)
                   {
                     fe_face_values.reinit(cell, face_no);
 #ifdef USE_AXISYMMETRY
@@ -2715,7 +2716,7 @@ void StokesProblem<dim>::newton_iteration()
   pcout<< "Newton iteration" << std::endl;
 
   // set to 1 for testing
-  const unsigned int max_iter = 8;
+  const unsigned int max_iter = 15;
   bool assemble_matrix = false;
   assemble_system(assemble_matrix);
   const double initial_residual = system_rhs.l2_norm();
@@ -2730,19 +2731,19 @@ void StokesProblem<dim>::newton_iteration()
   SolverControl cn;
   PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
 #else
-  SolverControl                  solver_control(1000, 1e-10);
+  SolverControl                  solver_control(1000, 1e-8);
 
   // TrilinosWrappers::SolverDirect::AdditionalData data;
   // // data.solver_type = "Amesos_Lapack";
   // TrilinosWrappers::SolverDirect solver(solver_control, data);
 
-  // TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
+  TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
 
   // SolverGMRES<VectorType> solver(solver_control);
-  // SolverBicgstab<VectorType> solver(solver_control);
+  SolverBicgstab<VectorType> solver(solver_control);
 
-  TrilinosWrappers::SolverDirect::AdditionalData data;
-  TrilinosWrappers::SolverDirect                 solver(solver_control, data);
+  // TrilinosWrappers::SolverDirect::AdditionalData data;
+  // TrilinosWrappers::SolverDirect                 solver(solver_control, data);
 #endif
 
   assemble_matrix = true;
@@ -2755,25 +2756,25 @@ void StokesProblem<dim>::newton_iteration()
       assemble_system(assemble_matrix);
       {
         TimerOutput::Scope t(computing_timer, "Direct Solve");
-        // try
-        //   {
-        //     Timer timer(mpi_communicator);
-        //     preconditioner.initialize(system_matrix);
-        //     solver.solve(system_matrix,
-        //                  newton_update,
-        //                  system_rhs,
-        //                  preconditioner);
-
-        //     pcout << " cg number of iterations: " << solver_control.last_step()
-        //           << " cg solve time: "<< timer.wall_time()
-        //           << std::endl;
-        //   }
-        // catch (const std::exception &exc)
+        try
           {
             Timer timer(mpi_communicator);
-            // pcout << " cg failed, use direct solver: " << std::endl;
-            // TrilinosWrappers::SolverDirect::AdditionalData data;
-            // TrilinosWrappers::SolverDirect solver(solver_control, data);
+            preconditioner.initialize(system_matrix);
+            solver.solve(system_matrix,
+                         newton_update,
+                         system_rhs,
+                         preconditioner);
+
+            pcout << " cg number of iterations: " << solver_control.last_step()
+                  << " cg solve time: "<< timer.wall_time()
+                  << std::endl;
+          }
+        catch (const std::exception &exc)
+          {
+            Timer timer(mpi_communicator);
+            pcout << " cg failed, use direct solver: " << std::endl;
+            TrilinosWrappers::SolverDirect::AdditionalData data;
+            TrilinosWrappers::SolverDirect solver(solver_control, data);
             solver.solve(system_matrix, newton_update, system_rhs);
             timer.stop();
             pcout<<" direct solver time: "<<timer.wall_time()<<std::endl;
@@ -3273,7 +3274,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp39/";
+  const std::string prefix = "tmp60/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3295,11 +3296,11 @@ StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number =860;
+    const unsigned int max_step_number =2000;
     const unsigned int output_interval = 10;
     const unsigned int checkpoint_output_interval = 10;
 
-    const bool start_from_checkpoint = false;// false;
+    const bool start_from_checkpoint = false;
 
     if(!start_from_checkpoint)
       {
@@ -3341,7 +3342,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 800;
+      step_number = 170;
       load_checkpoint(step_number, runtime);
     }
 
@@ -3354,7 +3355,7 @@ StokesProblem<dim>::run()
     while (step_number < max_step_number)
       {
         old_timestep     = present_timestep;
-        present_timestep = std::min(fix_timestep, (1e-5) * std::pow(1.05, step_number));        
+        present_timestep = std::min(fix_timestep, (1e-6) * std::pow(1.05, step_number));        
 
         step_number ++;
         runtime += present_timestep;
