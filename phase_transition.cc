@@ -908,11 +908,11 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 2.; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 2.; // sensible heat / surface tension (AC/CH)
+  const double G      = 1.; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 1.; // sensible heat / surface tension (AC/CH)
   const double Pi_eta = 1.; // sensible heat / visicosity
   const double Ste    = 1.; // Stefan number
-  const double We     = 2.; // Weber number
+  const double We     = 1.; // Weber number
   const double Re     = 1.; // Reynolds number
   const double Pe     = 1.; // Peclet number
 
