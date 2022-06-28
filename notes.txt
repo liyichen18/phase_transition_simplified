@@ -1,0 +1,461 @@
+use larege density ratio (psi outside caused problems)
+
+truncate psi when using:
+ - takes too many newton steps
+ - add if (residual_old - residual < 5e-6), set max_newton_steps = 15: test3-truncate-mu-psi-1.txt
+   generate velocity outside the drop and move the interface.
+
+initial ice layer 0.1 may be too thin, psi ac does not move upward
+use the 0.2
+
+
+running: tmp8.txt
+  , eta_s(1.000000e+02)
+  , surface_tension_psi_ac(1)
+  surface tension ac too small
+
+
+running: tmp9.txt
+  , eta_s(1.000000e+02)
+  , surface_tension_psi_ac(0.1)
+  initial_temperature = Tm-2
+
+psi_ac still moves down
+try 
+  , eta_s(1.000000e+02)
+  , surface_tension_psi_ac(0.5)
+  initial_temperature = Tm-2
+no good
+
+
+tmp11
+  , eta_s(1.000000e+02)
+  , surface_tension_psi_ac(0.2)
+  initial_temperature = Tm-2
+  , mobility_phi(1e-4)
+  , mobility_psi(1e-0)  
+
+
+  tmp12
+  , eta_s(1.000000e+02)
+  , surface_tension_psi_ac(0.01)
+  initial_temperature = Tm-2
+  , mobility_phi(1e-4)
+  , mobility_psi(1e-0)  
+
+
+tmp13
+  change dimensionless groups
+  const double G=		 1.159722e+03;// 1/G characterises Thompson-Gibbs effect 
+const double Pi_T=		 1.452778e+01;// sensible heat / surface tension (AC/CH)
+const double Pi_eta=		 1.101074e+03;// sensible heat / visicosity 
+const double Ste =	 1.252695e-02;// Stefan number
+const double We =	 9.801738e-04;// Weber number
+const double Re =	 7.428828e-02;// Reynolds number
+const double Pe =	 1.000000e+00;// Peclet number
+
+  , eta_l(1.)
+  , eta_s(1.)
+
+contact line move a lot, may be caused by surface tension.
+
+tmp14
+  , surface_tension_psi_ac(0.1)
+fialed in ~ step 530
+
+
+tmp15
+try limit phi and psi to [0,1]
+const unsigned int max_iter = 5;
+
+tmp16
+add artificial diffusion coefficient
+
+tmp16_2
+larger artificial coefficient
+
+
+tmp17
+dt = 5e-3
+larger artificial coefficient r(0.2)
+works fine
+
+tmp18
+exp data
+dt too large
+reduce to dt=2e-5
+
+
+tmp19
+density=1
+  , eta_s(100.)
+  axisymmetric
+  on palmetto
+  use too many backtracking, maybe dt is too largee (dt= 0.005)
+
+tmp20
+exp data
+dt too large
+reduce to dt=2e-5
+larger artificial coefficient r(0.25)  
+, eta_s(1.)
+axisymmetric
+equal visicosity
+
+tmp21
+density=1
+  , eta_s(100.)
+  axisymmetric
+  on palmetto
+  dt= 0.004
+  surface_tension_psi_ac(0.2 )
+
+tmp22
+density=1
+  , eta_s(1.)
+  axisymmetric
+  on palmetto
+  use too many backtracking, maybe dt is too largee (dt= 0.005)
+  use different thermal_conductivity for different materials
+pointy tip is not so obvious
+
+tmp23
+density=1
+  , eta_s(1.)
+  axisymmetric
+  on palmetto
+  use too many backtracking, maybe dt is too largee (dt= 0.005)
+
+use different thermal_conductivity for different materials
+density_g(0.01*density_l)
+
+results: the drop shrinks during the solidification
+
+
+tmp24
+based on tmp22, since the tip is not obvious, use larger eta_s!
+rm density_g(0.01*density_l)
+
+density=1
+  , eta_s(100.)
+  axisymmetric
+  on palmetto
+  (dt= 0.005)
+
+use different thermal_conductivity for different materials
+looks good
+
+tmp 25
+based on 23 but , eta_s(100.)
+diverges step ~140
+dt=5e-3 -> 2.5e-3 tmp 25_1 only delay the crash, and still shrinks
+density_g=0.1*density_l, tmp25_2 works
+density_g=0.05*density_l, tmp25_3 ok  repeat tmp25_3 > tmp25_3_1 shrinks
+density_g=0.02*density_l, tmp25_4 shrinks
+density_g=density_l, tmp25_5 
+density_g=0.1*density_l, eps=0.08 tmp25_6
+
+
+tmp 26
+based on 24 but change contact angle to match experiments
+but the final_h/initial_h = 1.0528 exp is ~1.3    **********************
+
+tmp27
+try exp parameters
+diverges in step ~20
+use smaller time step dt = 1e-5 tmp27_1 no good
+change  const double G      = 1.159722e+03;  diverges step 2 tmp27_2
+
+const double We     = 9.801738e-04; // Weber number  tmp27_3
+didn't diverges but pressure field is wierd, and velocity is very large.
+
+const double G      = 1.159722e+03; //  
+, present_timestep(5e-3)   tmp27_4  same as  tmp27_2
+
+const double Pi_eta = 1.101074e+03; tmp27_5
+
+const double Pi_T   = 1.452778e+01; tmp27_6
+
+tmp28
+use levelset parameters:
+drop width	363.8186805		0.9631571754
+drop height	276.147661		0.7310608704
+initial ice layer	13.15096457		0.03481527081
+radius	377.7355241		1
+theta_s	1.298504916	74.39885136	
+
+other parameters are the same as tmp26
+
+tip is not obvious and height is not high enough
+
+reduce hmin to 1/64 and eps 0.02  tmp28_1 parasitic currents are a bit large, may need to change label_mesh()
+final height is around 0.8, still far from 0.86
+
+tmp 29
+1. increase ice surface tension to produce higher tip. 0.1->0.5
+2. reduce density_g, but keep density_g*c_g the same, 
+   density_g:            0.05
+3. set wall relaxation parameter to 0
+
+tmp 30 stored in tmp31
+1. increase ice surface tension to produce higher tip. 0.1->0.5
+2. reduce density_g, but keep density_g*c_g the same, 
+   density_g:            0.5
+3. set wall relaxation parameter to 0
+
+tmp 31 stored in tmp 30
+based on 31, but surface_tension_ac = 0.1
+
+todo:
+1. plot r and phi, check the width
+2. keep eps, reduce hmin, and increase dt to see if the shrinkage is obvious.
+tmp 32, exp drop shape, palmetto/phase_transition_1/tmp32.txt
+eps=0.04, refine 7, rho_g=0.05rho_l, surface_tension_psi_ac  = 0.1, dt = 0.025
+
+3. increase refine layer.
+
+tmp 32
+match iniital condition first!
+based on tmp30
+
+tmp 33
+based on tmp32
+idnetical density_g and density_l
+
+tmp 34
+rho =1000
+refine 6
+
+tmp 35
+rho =1000
+refine 6
+c, k, rho are all taken values of liquid
+
+
+tmp 36
+new r , density_g(0.1*density_l)
+
+tmp 37
+new r , density_g(0.01*density_l)
+diverges at ###starting step 231  dt= 0.005  time= 0.6179 theta= 1
+
+tmp 38
+new r , density_g(0.01*density_l)
+
+tmp39 
+based on tmp32 but use new_r
+
+tmp40
+based on 39 but 
+use exp parameters and
+, eta_g(eta_l) // diverges at first step
+change to , eta_g(9.670022e-03*eta_l) same
+don't use new r
+use larger experiments
+  , eps(0.06)
+  , n_refinement(6) failed in step ~30
+
+tmp41
+based on tmp40
+but   , eta_g(9.670022e-01*eta_l)
+
+tmp42
+based on tmp41
+no USE_AXISYMMETRY, no good.
+
+tmp43
+based on tmp42
+no USE_AXISYMMETRY,
+use new R
+
+tmp44 
+based on tmp43
+use larger eps 0.04
+
+tmp45
+based on tmp44
+use new scaling
+
+tmp46
+use new scaling
+failed in step ~30
+
+tmp47
+use new scaling
+smaller fixed time step and initial time step
+failed: ###starting step 71  dt= 3e-05  time= 0.000618529 theta= 1
+
+tmp48
+based on tmp47
+use larger eps=0.06
+const double initial_solid_layer = 0.0341->0.1; // has to below melting temperature
+stop and increase time step 
+
+tmp49
+based on tmp48
+eta_g = 0.1*eta_l
+stop, since tmp48 works fine
+
+tmp50
+psi=1 everywhere
+interface still distorted at step 40
+
+tmp51
+psi=1 everywhere
+contact angle set to 90
+rm wall boundary assembly
+
+tmp52
+based on tmp51
+, eta_g(9.670022e-03*eta_l) > e-1
+
+tmp53
+based on tmp52
+equal density
+
+tmp 54
+based on tmp53
+bc/initial t = melting t
+
+tmp 55
+based on tmp53
+bc/initial t = melting t
+L = 0
+
+tmp56
+based on tmp55
+refine width 0.35->0.7
+
+tmp57
+easy parameters
+jiaqi2@heister-haidebao:~/phase_transition$  refine width 0.45
+jiaqi2@falankefu:~/simulation-phase-transition/phase_transition$  0.35
+
+tmp 58 haidebao
+Jiaqi, set initial t=1, and comment out term 3(ii) and 8(iv), 8(v)
+11:26
+This will give us a clean system where CH doesn't affect temperature
+switched to cg solver.
+
+tmp59
+try to recover refine8 results where there is a tip
+jiaqi2@falankefu:~/phase_transition/
+
+tmp60
+based on tmp59
+use 2d
+
+tmp61 haidebao
+based on tmp58
+use 2d
+
+
+tmp
+
+palmetto checkout that commit
+running 2d instead of axisymetric.
+
+
+jiaqi2@falankefu:~/simulation-phase-transition/phase_transition$
+checkout that working commit for easy parameters
+change to Prof. Yue's parameters
+but first test with axix: tmp 62 works
+
+tmp63
+based on tmp62
+used Prof. YUe's parameters
+still not going up
+
+tmp64
+based tmp60
+jiaqi2@falankefu:~/phase_transition$
+used Prof. YUe's parameters
+still not going up
+
+
+tmp 65 palmetto
+set initial and boundary t to melting t
+and latent heat = 0, check if parasitic currents are strong or not.
+5e-3
+ eps:                  0.02
+ hmin: 1/64
+
+tmp 66 new branch tmp66
+test parasitic currents 
+based on tmp55
+psi=1 everywhere
+contact angle set to 90
+rm wall boundary assembly
+
+para currents ~ 5e-3
+
+tmp 67
+jiaqi2@falankefu:~/simulation-phase-transition/phase_transition$
+used Prof. YUe's parameters
+  , melting_t(10.)
+  , initial_temperature(9.)
+  , boundary_temperature(9.)
+  doesn't work
+
+tmp68
+based on tmp66
+, n_refinement(7->8)
+to see if para currents are reduced. 
+yes, parasitic currents are reduced, ~ 7e-4
+but strange thing is that temperature is not constant!
+maybe caused by iterative solver?**************
+
+
+tmp69
+based on tmp66
+, density_g(0.01*density_l)
+to see if para currents are larger
+1. density ratio increases newtion iterations. 
+2. ~8e-2!
+3. but strange thing is that temperature is not constant!
+maybe caused by iterative solver?**************
+
+tmp70
+go back tmp 55 and add one more refine level. 
+  , eps(0.02)
+  , n_refinement(7)
+parasitic currents ~ 0.3, the worse
+
+
+tmp71 palmetto
+based tmp 67
+used Prof. YUe's parameters
+  , melting_t(10.)
+  , initial_temperature(9.)
+  , boundary_temperature(9.)
+  , latent_heat(0.01->1.)
+almost the same, psi=0.5 still doesn't going up. 
+
+
+tmp72
+based on tmp71
+go back tmp 55 and add one more refine level. 
+  , eps(0.02)
+  , n_refinement(8)
+  &width = 0.45
+  *************may take very long time
+
+
+tmp73 jiaqi2@falankefu:~/simulation-phase-transition/phase_transition$
+  , eta_s(1.) from 100
+  , surface_tension_psi_ac(1.) from 0.1
+note that G = 2, Pi_t=2, We=2
+
+psi = 0.5 going up, but slower than tmp62, and contact line moves to the left. 
+
+tmp74 haidebao
+based on tmp73
+  , eta_s(1.) from 100
+  , surface_tension_psi_ac(1.) from 0.1
+note that G = 1, Pi_t=1, We=1
+compared with tmp73
+
+
+tmp75 
+all dimensionless groups set to 1
+

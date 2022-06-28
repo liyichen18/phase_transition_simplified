@@ -13,3 +13,6 @@ output/*
 results/*
 *txt
 !CMakeLists.txt
+*.out 
+checkpoints/*
+.vscode/*

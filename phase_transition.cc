@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-// #define USE_AXISYMMETRY // axisymmetric implementation
+#define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
 namespace LA
@@ -792,7 +792,7 @@ namespace InitialConditions
             const double d = R - r;
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.1; // has to below melting temperature
+            const double initial_solid_layer = 0.2; // has to below melting temperature
             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
@@ -908,11 +908,11 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 1.; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 1.; // sensible heat / surface tension (AC/CH)
+  const double G      = 2.; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 2.; // sensible heat / surface tension (AC/CH)
   const double Pi_eta = 1.; // sensible heat / visicosity
   const double Ste    = 1.; // Stefan number
-  const double We     = 1.; // Weber number
+  const double We     = 2.; // Weber number
   const double Re     = 1.; // Reynolds number
   const double Pe     = 1.; // Peclet number
 
@@ -1119,7 +1119,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , test_case(testcase)
   , n_refinement(7)
   , density_l(1.)  
-  , density_s(1.)
+  , density_s(0.9)
   , density_g(density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
@@ -3106,6 +3106,8 @@ void StokesProblem<dim>::print_variables() const
         << " num of MPI processes: " << Utilities::MPI::n_mpi_processes(mpi_communicator) << std::endl;
 #ifdef USE_AXISYMMETRY
   pcout << " axisymetric:          " << "true" << std::endl;
+#else
+  pcout << " axisymetric:          " << "false" << std::endl;  
 #endif    
 #ifdef USE_NEW_R
   pcout << " new_r:                " << "true" << std::endl;
@@ -3274,7 +3276,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp60/";
+  const std::string prefix = "tmp75/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3355,7 +3357,7 @@ StokesProblem<dim>::run()
     while (step_number < max_step_number)
       {
         old_timestep     = present_timestep;
-        present_timestep = std::min(fix_timestep, (1e-6) * std::pow(1.05, step_number));        
+        present_timestep = std::min(fix_timestep, (1e-4) * std::pow(1.05, step_number));        
 
         step_number ++;
         runtime += present_timestep;
