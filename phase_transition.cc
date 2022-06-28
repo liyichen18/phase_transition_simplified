@@ -1148,7 +1148,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
       eps)) /*which density should be used?*/
   , mobility_phi(1e-4)
   , mobility_psi(1e-0)
-  , latent_heat(1.)
+  , latent_heat(0.01)
   , melting_t(1.)
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(1.)
@@ -3276,7 +3276,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp75/";
+  const std::string prefix = "tmp78/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
