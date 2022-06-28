@@ -1152,7 +1152,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , melting_t(1.)
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(1.)
-  , k_g(1.)
+  , k_g(0.01)
   , initial_temperature(0.01)
   , boundary_temperature(0.01)
   , ambient_pressure(0.)
@@ -3276,7 +3276,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp78/";
+  const std::string prefix = "tmp79/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
