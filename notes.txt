@@ -457,5 +457,123 @@ compared with tmp73
 
 
 tmp75 
-all dimensionless groups set to 1
+try to recover tmp62 in branch axisymetric
+seems to recover
 
+
+
+tmp76 jiaqi2@falankefu:~/simulation-phase-transition/phase_transition$
+tmp 62 uses eta_s=100
+slow down solidification. 
+
+tmp77 palmetto
+based on tmp75 but set all dimensionless numbers to 1. 
+equivalent to surface_tension_ch from 0.01 to 1. 
+
+
+tmp78 palmetto
+based on tmp77
+latent_heat = 0.01
+
+
+tmp79 
+based on tmp78
+k_g=0.01
+
+todo:
+tmp80
+based on tmp79
+eta_s=100
+
+increase mobility_psi=100, check if solidification occurs faster as 
+latent_heat increases
+branch: tmp75
+
+tmp 81
+latent_heat=0.01
+
+tmp 82
+latent_heat=0.1
+
+tmp 83
+latent_heat=1
+
+
+tmp 84 branch test3-para-study
+density ratio 1
+
+tmp 85 branch test3-para-study
+density ratio 0.01
+
+tmp 86 branch test3-para-study
+density ratio 1
+increase density to 100
+
+tmp 87 branch test3-para-study
+density ratio 0.01
+density 100
+
+
+
+tmp 88 branch test3-para-study
+density ratio 1
+refine 8
+
+tmp 89 branch test3-para-study
+density ratio 1
+refine 8
+phi degree 1
+
+test different combinations of polynomial degrees. 
+
+tmp 90 branch test3-para-study
+density ratio 1
+refine 7
+vel degree = 3,  others vel -1
+
+
+tmp 91 branch test3-para-study
+density ratio 1
+refine 7
+vel degree = 2,  phi = mu = 3
+
+tmp 92 branch test3-para-study
+density ratio 1
+refine 7
+vel degree = 3,  phi = mu = 3
+
+
+tmp 93 branch test3-para-study
+density ratio 1
+refine 7
+phi degree 1
+
+tmp 94 branch test3-para-study
+density ratio 1
+refine 8
+vel degree =2 
+  fe_list.push_back(
+    new FE_Q<dim>(velocity_degree)); //(dim) fluid velocity
+  fe_list.push_back(new FE_Q<dim>(velocity_degree - 1)); //(1)   pressure P
+  fe_list.push_back(new FE_Q<dim>(velocity_degree-1)); //temperature
+  fe_list.push_back(new FE_Q<dim>(2)); //phi_ch
+  fe_list.push_back(new FE_Q<dim>(2)); //mu_phi_ch
+  fe_list.push_back(new FE_Q<dim>(velocity_degree-1)); //phi_ac
+  fe_list.push_back(new FE_Q<dim>(velocity_degree-1)); //mu_phi_ch
+
+tmp 95 branch test3-para-study
+density ratio 100
+refine 8
+vel degree =2 
+  fe_list.push_back(
+    new FE_Q<dim>(velocity_degree)); //(dim) fluid velocity
+  fe_list.push_back(new FE_Q<dim>(velocity_degree - 1)); //(1)   pressure P
+  fe_list.push_back(new FE_Q<dim>(velocity_degree-1)); //temperature
+  fe_list.push_back(new FE_Q<dim>(2)); //phi_ch
+  fe_list.push_back(new FE_Q<dim>(2)); //mu_phi_ch
+  fe_list.push_back(new FE_Q<dim>(velocity_degree-1)); //phi_ac
+  fe_list.push_back(new FE_Q<dim>(velocity_degree-1)); //mu_phi_ch  
+
+
+tmp 96 branch test3-para-study
+reform pressure
