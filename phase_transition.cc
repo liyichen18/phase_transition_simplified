@@ -793,7 +793,7 @@ namespace InitialConditions
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
             const double initial_solid_layer = 0.2; // has to below melting temperature
-            const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
+            const double psi = 1;//0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
 
@@ -1119,8 +1119,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , test_case(testcase)
   , n_refinement(7)
   , density_l(1.)  
-  , density_s(0.9)
-  , density_g(density_l)
+  , density_s(0.9 * density_l)
+  , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
@@ -1148,16 +1148,16 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
       eps)) /*which density should be used?*/
   , mobility_phi(1e-4)
   , mobility_psi(1e-0)
-  , latent_heat(0.01)
+  , latent_heat(0.0)
   , melting_t(1.)
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(1.)
-  , k_g(0.01)
-  , initial_temperature(0.01)
-  , boundary_temperature(0.01)
+  , k_g(1.)
+  , initial_temperature(melting_t)
+  , boundary_temperature(melting_t)
   , ambient_pressure(0.)
   , mapping(1)
-  , static_contact_angle(1.282315642) // 73.47 degrees
+  , static_contact_angle(numbers::PI/3.) // 73.47 degrees
   , one_over_wall_relaxation_gamma(0.)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
@@ -2311,16 +2311,16 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           // w3
                           //  term i
                           mat += shape_mu_phi_ch[j] * shape_mu_phi_ch[i];
-                          //  term ii
-                          mat += (-((r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_psi_ac_theta[j]
-                                     + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j]
-                                     ) * latent_heat * (1. - temperature_ts/melting_t)
-                                    ) * DimensionlessGroups::G
-                                  + r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat/melting_t * shape_temperature_theta[j] * DimensionlessGroups::G
-                                  + (shape_c_partial_phi_theta[j] * w35_reuse_term1
-                                     + c_partial_phi_ch_ts * shape_temperature_theta[j] * log_t_ts_tm * DimensionlessGroups::Pi_T
-                                     )
-                                  ) * shape_mu_phi_ch[i];
+                          // //  term ii
+                          // mat += (-((r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_psi_ac_theta[j]
+                          //            + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j]
+                          //            ) * latent_heat * (1. - temperature_ts/melting_t)
+                          //           ) * DimensionlessGroups::G
+                          //         + r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat/melting_t * shape_temperature_theta[j] * DimensionlessGroups::G
+                          //         + (shape_c_partial_phi_theta[j] * w35_reuse_term1
+                          //            + c_partial_phi_ch_ts * shape_temperature_theta[j] * log_t_ts_tm * DimensionlessGroups::Pi_T
+                          //            )
+                          //         ) * shape_mu_phi_ch[i];
                           //  term iii
                           mat += (-(lambda_phi * w_prime_prime_phi_ch_ts
                                     + lambda_psi * r_prime_prime_phi_ch_ts * w3_reuse_term2
@@ -2395,24 +2395,24 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                    + (k_partial_phi_ch_ts * shape_phi_ch_theta[j] 
                                     + k_partial_psi_ac_ts * shape_psi_ac_theta[j]) * grad_temperature_ts )
                                   * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
-                          //  term iv
-                          mat += latent_heat/melting_t * (r_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_prime_phi_ch_ts * h_ts
-                                                          + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j] * h_ts
-                                                          + r_psi_ac_ts * r_prime_phi_ch_ts * shape_h_ts[j]
-                                                          - r_prime_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q]
-                                                          - r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * mobility_psi * mu_psi_ac_star[q]
-                                                          - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * shape_mu_psi_ac[j])
-                              * temperature_ts * shape_temperature[i] * DimensionlessGroups::one_over_Ste
-                              + latent_heat/melting_t * (r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
-                                                         - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
-                              * shape_temperature_theta[j] * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
-                          //  term v
-                          mat += (shape_c_partial_phi_theta[j] * h_ts + c_partial_phi_ch_ts * shape_h_ts[j]
-                                  - shape_c_partial_psi_theta[j] * mobility_psi * mu_psi_ac_star[q]
-                                  - c_partial_psi_ac_ts * mobility_psi * shape_mu_psi_ac[j])
-                              *  temperature_ts * log_t_ts_tm * shape_temperature[i]
-                              +  (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
-                              *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
+                          // //  term iv
+                          // mat += latent_heat/melting_t * (r_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_prime_phi_ch_ts * h_ts
+                          //                                 + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j] * h_ts
+                          //                                 + r_psi_ac_ts * r_prime_phi_ch_ts * shape_h_ts[j]
+                          //                                 - r_prime_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q]
+                          //                                 - r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * mobility_psi * mu_psi_ac_star[q]
+                          //                                 - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * shape_mu_psi_ac[j])
+                          //     * temperature_ts * shape_temperature[i] * DimensionlessGroups::one_over_Ste
+                          //     + latent_heat/melting_t * (r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
+                          //                                - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
+                          //     * shape_temperature_theta[j] * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
+                          // //  term v
+                          // mat += (shape_c_partial_phi_theta[j] * h_ts + c_partial_phi_ch_ts * shape_h_ts[j]
+                          //         - shape_c_partial_psi_theta[j] * mobility_psi * mu_psi_ac_star[q]
+                          //         - c_partial_psi_ac_ts * mobility_psi * shape_mu_psi_ac[j])
+                          //     *  temperature_ts * log_t_ts_tm * shape_temperature[i]
+                          //     +  (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
+                          //     *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
 #ifdef USE_AXISYMMETRY        
                           // axi-2
                           mat += + 0.5 * vel_bar[0] * one_over_r * ((shape_rho_theta[j] * vel_ts 
@@ -2436,9 +2436,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   // w3
                   //  term i
                   rhs += - mu_phi_ch_star[q] * shape_mu_phi_ch[i];
-                  //  term ii
-                  rhs += (r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
-                          - c_partial_phi_ch_ts * w35_reuse_term1) * shape_mu_phi_ch[i];
+                  // //  term ii
+                  // rhs += (r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
+                  //         - c_partial_phi_ch_ts * w35_reuse_term1) * shape_mu_phi_ch[i];
                   //  term iii
                   rhs += (lambda_phi * w_prime_phi_ch_ts + lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
                           + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
@@ -2481,13 +2481,13 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           + eta_ts * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
                   //  term iii
                   rhs += - k_ts * grad_temperature_ts * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
-                  //  term iv
-                  rhs += - (latent_heat * r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
-                            - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
-                      * temperature_ts/melting_t * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
-                  // term v
-                  rhs += - (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
-                      * temperature_ts * log_t_ts_tm * shape_temperature[i];
+                  // //  term iv
+                  // rhs += - (latent_heat * r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
+                  //           - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
+                  //     * temperature_ts/melting_t * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
+                  // // term v
+                  // rhs += - (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
+                  //     * temperature_ts * log_t_ts_tm * shape_temperature[i];
 #ifdef USE_AXISYMMETRY
                   // axi-1
                   rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
@@ -2510,9 +2510,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             // face loop, assemble moving contact line bc
             for (const auto face_no : cell->face_indices())
               {
-                // if (cell->face(face_no)->at_boundary() &&
-                //     cell->face(face_no)->boundary_id() == wall_boundary_id)
-                if(false)
+                if (cell->face(face_no)->at_boundary() &&
+                    cell->face(face_no)->boundary_id() == wall_boundary_id)
+                // if(false)
                   {
                     fe_face_values.reinit(cell, face_no);
 #ifdef USE_AXISYMMETRY
@@ -2606,21 +2606,20 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                         {
                           for (unsigned int j = 0; j < dofs_per_cell; ++j)
                             {
+                              // w3 term v
                               cell_matrix(i, j) += (
-                                                      surface_tension_phi_ch * std::cos(static_contact_angle)
-                                                      * face_shape_inv_rho_theta[j] * q_prime_phi_ch_ts
-                                                    + surface_tension_phi_ch * std::cos(static_contact_angle)
-                                                      * face_inv_rho_ts * q_prime_prime_phi_ch_ts * face_shape_phi_ch_theta[j] 
+                                                      numbers::SQRT2 * lambda_phi * std::cos(static_contact_angle) / eps
+                                                      * (1. - 2. * face_phi_ch_ts) * face_shape_phi_ch_theta[j]
                                                     - one_over_wall_relaxation_gamma * (face_shape_phi_ch[j]/present_timestep 
                                                                                            + wall_velocity * face_grad_shape_phi_ch_theta[j])
                                                     )
                                                   * face_shape_mu_phi_ch[i] * face_jxwq;
                                                     
                             }
-
+                          // w3 term v
                           cell_rhs(i) += ( 
-                                           - face_inv_rho_ts * surface_tension_phi_ch * std::cos(static_contact_angle)
-                                             * q_prime_phi_ch_ts 
+                                           - numbers::SQRT2 * lambda_phi * std::cos(static_contact_angle) / eps
+                                             * face_phi_ch_ts * (1. - face_phi_ch_ts)
                                            + one_over_wall_relaxation_gamma * (face_phi_ch_star[q] - face_phi_ch_n[q])/present_timestep
                                              + wall_velocity * face_grad_phi_ch_ts 
                                           ) 
@@ -3276,7 +3275,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp79/";
+  const std::string prefix = "tmp96/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3298,8 +3297,8 @@ StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number =2000;
-    const unsigned int output_interval = 10;
+    const unsigned int max_step_number =200;
+    const unsigned int output_interval = 1;
     const unsigned int checkpoint_output_interval = 10;
 
     const bool start_from_checkpoint = false;
@@ -3395,8 +3394,7 @@ StokesProblem<dim>::run()
         //       }
         // }
 
-        if ((step_number % output_interval == 0)
-        || (step_number > 850 && step_number < 860))
+        if ((step_number % output_interval == 0))
           {
             TimerOutput::Scope t(computing_timer, "output");
             output_results(step_number);
