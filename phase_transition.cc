@@ -2207,7 +2207,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
 
               const Tensor<2,dim> gamma_ts = lambda_phi * outer_product(grad_phi_ch_ts, grad_phi_ch_ts)
-                  + r_phi_ch_ts * lambda_psi * outer_product(grad_psi_ac_ts, grad_psi_ac_ts);
+                  + r_phi_ch_ts * lambda_psi * outer_product(grad_psi_ac_ts, grad_psi_ac_ts)
+                  + (lambda_phi * (grad_phi_ch_ts * grad_phi_ch_ts) 
+                     + r_phi_ch_ts * lambda_psi * (grad_psi_ac_ts * grad_psi_ac_ts)) * id_tensor;
 
               const Tensor<1,dim> D_vel_Dt_ts = (vel_star[q] - vel_n[q])/present_timestep +  grad_vel_ts * vel_bar
                   + 0.5 * div_vel_bar * vel_ts;
@@ -2296,7 +2298,10 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   shape_gamma_theta[k] = lambda_phi * (grad_phi_ch_ts_grad_shape_phi_ch_theta
                                                        + transpose(grad_phi_ch_ts_grad_shape_phi_ch_theta))
                       + lambda_psi * (r_prime_phi_ch_ts * shape_phi_ch_theta[k] * outer_product(grad_psi_ac_ts, grad_psi_ac_ts)
-                                      + r_phi_ch_ts * (grad_psi_ac_ts_grad_shape_psi_ac_theta + transpose(grad_psi_ac_ts_grad_shape_psi_ac_theta)));
+                                      + r_phi_ch_ts * (grad_psi_ac_ts_grad_shape_psi_ac_theta + transpose(grad_psi_ac_ts_grad_shape_psi_ac_theta)))
+                      + (2. * lambda_phi * (grad_phi_ch_ts * grad_shape_phi_ch_theta[k])
+                         + 2. * r_phi_ch_ts * lambda_psi * (grad_psi_ac_ts * grad_shape_psi_ac_theta[k])
+                         + r_prime_phi_ch_ts * lambda_psi * shape_phi_ch_theta[k] * (grad_psi_ac_ts * grad_psi_ac_ts)) * id_tensor;
                 }
 
               for (unsigned int i = 0; i < dofs_per_cell; ++i)
@@ -2330,10 +2335,10 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                      ) * DimensionlessGroups::We
                                   ) * shape_mu_phi_ch[i];
                           //  term iv
-                          mat += - lambda_phi * (grad_shape_phi_ch_theta[j] * grad_shape_mu_phi_ch[i])
-                              -  lambda_phi * shape_rho_theta[j] * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i]
-                              -  lambda_phi * rho_ts * (grad_shape_phi_ch_theta[j] * grad_inv_rho_ts) * shape_mu_phi_ch[i]
-                              -  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi_ch[i];
+                          mat += - lambda_phi * (grad_shape_phi_ch_theta[j] * grad_shape_mu_phi_ch[i]);
+                              // -  lambda_phi * shape_rho_theta[j] * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i]
+                              // -  lambda_phi * rho_ts * (grad_shape_phi_ch_theta[j] * grad_inv_rho_ts) * shape_mu_phi_ch[i]
+                              // -  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi_ch[i];
 
                           // todo: add face integral term v
 
@@ -2359,11 +2364,11 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                   ) * shape_mu_psi_ac[i];
                           //  term iv
                           mat += - (r_prime_phi_ch_ts * shape_phi_ch_theta[j] * lambda_psi * grad_psi_ac_ts
-                                    + (r_phi_ch_ts + artificial_diffusion_coefficient) * lambda_psi * grad_shape_psi_ac_theta[j]) * grad_shape_mu_psi_ac[i]
-                              - lambda_psi * shape_rho_theta[j] * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i]
-                              - lambda_psi * rho_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i]
-                              - lambda_psi * rho_ts * r_phi_ch_ts * (grad_shape_psi_ac_theta[j] * grad_inv_rho_ts) * shape_mu_psi_ac[i]
-                              - lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_shape_inv_rho_theta[j]) * shape_mu_psi_ac[i];
+                                    + (r_phi_ch_ts + artificial_diffusion_coefficient) * lambda_psi * grad_shape_psi_ac_theta[j]) * grad_shape_mu_psi_ac[i];
+                              // - lambda_psi * shape_rho_theta[j] * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i]
+                              // - lambda_psi * rho_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i]
+                              // - lambda_psi * rho_ts * r_phi_ch_ts * (grad_shape_psi_ac_theta[j] * grad_inv_rho_ts) * shape_mu_psi_ac[i]
+                              // - lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_shape_inv_rho_theta[j]) * shape_mu_psi_ac[i];
 
                           // w6
                           mat += (shape_rho_theta[j] * D_vel_Dt_ts
@@ -2443,8 +2448,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (lambda_phi * w_prime_phi_ch_ts + lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
                           + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
                   //  term iv
-                  rhs += lambda_phi * (grad_phi_ch_ts * grad_shape_mu_phi_ch[i])
-                      +  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i];
+                  rhs += lambda_phi * (grad_phi_ch_ts * grad_shape_mu_phi_ch[i]);
+                      // +  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i];
 
                   // w4
                   rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_ac_star[q]) * shape_psi_ac[i];
@@ -2459,8 +2464,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (r_phi_ch_ts * lambda_psi * w_prime_psi_ac_ts + DimensionlessGroups::We * pressure_star[q] * inv_rho_partial_psi_ac_ts
                          ) * shape_mu_psi_ac[i];
                   //  term iv
-                  rhs += lambda_psi * (r_phi_ch_ts + artificial_diffusion_coefficient) * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i])
-                      +  lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i];
+                  rhs += lambda_psi * (r_phi_ch_ts + artificial_diffusion_coefficient) * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i]);
+                      // +  lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i];
 
                   // w6
                   rhs += - rho_ts * D_vel_Dt_ts * shape_vel[i]
@@ -3298,7 +3303,7 @@ StokesProblem<dim>::run()
     double runtime           = 0.;
 
     const unsigned int max_step_number =200;
-    const unsigned int output_interval = 1;
+    const unsigned int output_interval = 10;
     const unsigned int checkpoint_output_interval = 10;
 
     const bool start_from_checkpoint = false;
