@@ -505,7 +505,7 @@ move_file(const std::string &old_name, const std::string &new_name)
                   const int                & max_level,     
                   //component extractor for phase field phi
                   const Extractors<dim>    &extractors,
-                  const double             &width = 0.35
+                  const double             &width = 0.48
                   )
 
   {
@@ -1057,6 +1057,8 @@ private:
     std::string output_dir;
     std::string checkpoints_dir;
 
+    bool relax_phase_field = true;
+
 };
 
 
@@ -1140,12 +1142,12 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
       density_l,
       density_g,
       surface_tension_phi_ch,
-      eps))
+      eps)/2.46472791326) // surface tension formula is changed, need to compute the factor. 
   , lambda_psi(InlineFunctions::compute_lambda_from_surface_tension(
       density_l,
       density_s,
       surface_tension_psi_ac,
-      eps)) /*which density should be used?*/
+      eps)/2.46472791326) /*which density should be used?*/
   , mobility_phi(1e-4)
   , mobility_psi(1e-0)
   , latent_heat(0.0)
@@ -1157,7 +1159,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , boundary_temperature(melting_t)
   , ambient_pressure(0.)
   , mapping(1)
-  , static_contact_angle(numbers::PI/3.) // 73.47 degrees
+  , static_contact_angle(numbers::PI/2.) // 73.47 degrees
   , one_over_wall_relaxation_gamma(0.)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
@@ -2006,6 +2008,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
     std::vector<Tensor<2,dim>>  shape_gamma_theta(dofs_per_cell);
 
+    std::vector<double> shape_pressure_reformulated_term(dofs_per_cell);
+
     std::vector<double>         shape_temperature(dofs_per_cell);
     std::vector<double>         shape_temperature_theta(dofs_per_cell);
     std::vector<Tensor<1,dim>>  grad_shape_temperature(dofs_per_cell);
@@ -2205,11 +2209,11 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const double w_prime_prime_phi_ch_ts = InlineFunctions::w_prime_prime(phi_ch_ts, eps);
               const double w_prime_prime_psi_ac_ts = InlineFunctions::w_prime_prime(psi_ac_ts, eps);
 
-
+              const double pressure_reformulated_term = (lambda_phi * (grad_phi_ch_ts * grad_phi_ch_ts) 
+                     + r_phi_ch_ts * lambda_psi * (grad_psi_ac_ts * grad_psi_ac_ts));
               const Tensor<2,dim> gamma_ts = lambda_phi * outer_product(grad_phi_ch_ts, grad_phi_ch_ts)
                   + r_phi_ch_ts * lambda_psi * outer_product(grad_psi_ac_ts, grad_psi_ac_ts)
-                  + (lambda_phi * (grad_phi_ch_ts * grad_phi_ch_ts) 
-                     + r_phi_ch_ts * lambda_psi * (grad_psi_ac_ts * grad_psi_ac_ts)) * id_tensor;
+                  - pressure_reformulated_term * id_tensor;
 
               const Tensor<1,dim> D_vel_Dt_ts = (vel_star[q] - vel_n[q])/present_timestep +  grad_vel_ts * vel_bar
                   + 0.5 * div_vel_bar * vel_ts;
@@ -2295,13 +2299,14 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 
                   const Tensor<2,dim> grad_phi_ch_ts_grad_shape_phi_ch_theta = outer_product(grad_phi_ch_ts, grad_shape_phi_ch_theta[k]);
                   const Tensor<2,dim> grad_psi_ac_ts_grad_shape_psi_ac_theta = outer_product(grad_psi_ac_ts, grad_shape_psi_ac_theta[k]);
+                  shape_pressure_reformulated_term[k] = (2. * lambda_phi * (grad_phi_ch_ts * grad_shape_phi_ch_theta[k])
+                         + 2. * r_phi_ch_ts * lambda_psi * (grad_psi_ac_ts * grad_shape_psi_ac_theta[k])
+                         + r_prime_phi_ch_ts * lambda_psi * shape_phi_ch_theta[k] * (grad_psi_ac_ts * grad_psi_ac_ts));
                   shape_gamma_theta[k] = lambda_phi * (grad_phi_ch_ts_grad_shape_phi_ch_theta
                                                        + transpose(grad_phi_ch_ts_grad_shape_phi_ch_theta))
                       + lambda_psi * (r_prime_phi_ch_ts * shape_phi_ch_theta[k] * outer_product(grad_psi_ac_ts, grad_psi_ac_ts)
                                       + r_phi_ch_ts * (grad_psi_ac_ts_grad_shape_psi_ac_theta + transpose(grad_psi_ac_ts_grad_shape_psi_ac_theta)))
-                      + (2. * lambda_phi * (grad_phi_ch_ts * grad_shape_phi_ch_theta[k])
-                         + 2. * r_phi_ch_ts * lambda_psi * (grad_psi_ac_ts * grad_shape_psi_ac_theta[k])
-                         + r_prime_phi_ch_ts * lambda_psi * shape_phi_ch_theta[k] * (grad_psi_ac_ts * grad_psi_ac_ts)) * id_tensor;
+                      - shape_pressure_reformulated_term[k] * id_tensor;
                 }
 
               for (unsigned int i = 0; i < dofs_per_cell; ++i)
@@ -2389,17 +2394,17 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           mat += ((shape_rho_theta[j] * c_ts + rho_ts * shape_c_theta[j]) * D_temperature_Dt_ts
                                   +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
                                                       + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
-                          //  term ii
-                          mat +=(-2. * ( mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_mu_phi_ch[j])
-                                         + mobility_psi * mu_psi_ac_star[q] * shape_mu_psi_ac[j]) * DimensionlessGroups::one_over_Pi_T
-                                 -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
-                                 -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
-                                 -  eta_ts * scalar_product(e_ts, grad_shape_vel[j]) * theta * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
-                          //  term iii
-                          mat += ( k_ts * grad_shape_temperature_theta[j]
-                                   + (k_partial_phi_ch_ts * shape_phi_ch_theta[j] 
-                                    + k_partial_psi_ac_ts * shape_psi_ac_theta[j]) * grad_temperature_ts )
-                                  * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
+                          // //  term ii
+                          // mat +=(-2. * ( mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_mu_phi_ch[j])
+                          //                + mobility_psi * mu_psi_ac_star[q] * shape_mu_psi_ac[j]) * DimensionlessGroups::one_over_Pi_T
+                          //        -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
+                          //        -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
+                          //        -  eta_ts * scalar_product(e_ts, grad_shape_vel[j]) * theta * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
+                          // //  term iii
+                          // mat += ( k_ts * grad_shape_temperature_theta[j]
+                          //          + (k_partial_phi_ch_ts * shape_phi_ch_theta[j] 
+                          //           + k_partial_psi_ac_ts * shape_psi_ac_theta[j]) * grad_temperature_ts )
+                          //         * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
                           // //  term iv
                           // mat += latent_heat/melting_t * (r_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_prime_phi_ch_ts * h_ts
                           //                                 + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j] * h_ts
@@ -2429,6 +2434,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                    * shape_vel[i][0] * one_over_r;
                           // axi-4
                           mat += - shape_vel_theta[j][0] * one_over_r * shape_pressure[i];
+                          // pressure reformulated term
+                          mat += (shape_rho_theta[j] * pressure_reformulated_term + rho_ts * shape_pressure_reformulated_term[j]) * shape_vel[i][0] * one_over_r;
 #endif
                           cell_matrix(i,j) += mat * jxwq;
 
@@ -2466,41 +2473,49 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   //  term iv
                   rhs += lambda_psi * (r_phi_ch_ts + artificial_diffusion_coefficient) * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i]);
                       // +  lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i];
+                  if(!relax_phase_field)
+                  {
+                    // w6
+                    rhs += - rho_ts * D_vel_Dt_ts * shape_vel[i]
+                        +    pressure_star[q] * shape_div_vel[i]
+                        -    eta_ts * scalar_product(e_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
+                        +    rho_ts * scalar_product(gamma_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
 
-                  // w6
-                  rhs += - rho_ts * D_vel_Dt_ts * shape_vel[i]
-                      +    pressure_star[q] * shape_div_vel[i]
-                      -    eta_ts * scalar_product(e_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
-                      +    rho_ts * scalar_product(gamma_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
+                    // w7
+                    rhs += (div_vel_ts - inv_rho_partial_phi_ch_ts * h_ts
+                            +  inv_rho_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q]) * shape_pressure[i];
 
-                  // w7
-                  rhs += (div_vel_ts - inv_rho_partial_phi_ch_ts * h_ts
-                          +  inv_rho_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q]) * shape_pressure[i];
-
-                  // w8
-                  //  term i
-                  rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
-                  //  term ii
-                  rhs += (mobility_phi * (grad_mu_phi_ch_star[q] * grad_mu_phi_ch_star[q]) * DimensionlessGroups::one_over_Pi_T
-                          + mobility_psi * (mu_psi_ac_star[q] * mu_psi_ac_star[q]) * DimensionlessGroups::one_over_Pi_T
-                          + eta_ts * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
-                  //  term iii
-                  rhs += - k_ts * grad_temperature_ts * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
-                  // //  term iv
-                  // rhs += - (latent_heat * r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
-                  //           - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
-                  //     * temperature_ts/melting_t * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
-                  // // term v
-                  // rhs += - (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
-                  //     * temperature_ts * log_t_ts_tm * shape_temperature[i];
+                    // w8
+                    //  term i
+                    rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
+                    // //  term ii
+                    // rhs += (mobility_phi * (grad_mu_phi_ch_star[q] * grad_mu_phi_ch_star[q]) * DimensionlessGroups::one_over_Pi_T
+                    //         + mobility_psi * (mu_psi_ac_star[q] * mu_psi_ac_star[q]) * DimensionlessGroups::one_over_Pi_T
+                    //         + eta_ts * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
+                    // //  term iii
+                    // rhs += - k_ts * grad_temperature_ts * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
+                    // //  term iv
+                    // rhs += - (latent_heat * r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
+                    //           - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
+                    //     * temperature_ts/melting_t * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
+                    // // term v
+                    // rhs += - (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
+                    //     * temperature_ts * log_t_ts_tm * shape_temperature[i];
+                  }
 #ifdef USE_AXISYMMETRY
-                  // axi-1
-                  rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
-                         + (pressure_star[q] * shape_vel[i][0] * one_over_r)
-                         + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0])
-                         - (eta_ts * 2. * vel_ts[0] * one_over_r * shape_vel[i][0] * one_over_r);
-                  // axi-3
-                  rhs += vel_ts[0] * one_over_r * shape_pressure[i];
+                  if(!relax_phase_field)
+                  {
+                    // axi-1
+                    rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
+                          + (pressure_star[q] * shape_vel[i][0] * one_over_r)
+                          + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0])
+                          - (eta_ts * 2. * vel_ts[0] * one_over_r * shape_vel[i][0] * one_over_r);
+                    // axi-3
+                    rhs += vel_ts[0] * one_over_r * shape_pressure[i];
+
+                    // reformulated pressure term
+                    rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r;
+                  }
                   
 #endif
 
@@ -2515,9 +2530,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             // face loop, assemble moving contact line bc
             for (const auto face_no : cell->face_indices())
               {
-                if (cell->face(face_no)->at_boundary() &&
-                    cell->face(face_no)->boundary_id() == wall_boundary_id)
-                // if(false)
+                // if (cell->face(face_no)->at_boundary() &&
+                //     cell->face(face_no)->boundary_id() == wall_boundary_id)
+                if(false)
                   {
                     fe_face_values.reinit(cell, face_no);
 #ifdef USE_AXISYMMETRY
@@ -2655,17 +2670,29 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                       }
                   }
               } // test case
-# if 0
+# if 1
             {
               const auto is_not_selected_component =
                 [&](const unsigned int comp) {
+                  if(relax_phase_field)
                   return !(
+                    comp == extractors.psi_ac.component 
+                    || comp == extractors.mu_psi_ac.component 
+                    // || comp == extractors.pressure.component 
+                    // || (comp >= extractors.velocities.first_vector_component 
+                    //     && comp < extractors.velocities.first_vector_component + dim) 
+                    // || comp == extractors.temperature.component
+                    || comp == extractors.phi_ch.component
+                    || comp == extractors.mu_phi_ch.component
+                    );
+                    else
+                    return !(
                     comp == extractors.psi_ac.component 
                     || comp == extractors.mu_psi_ac.component 
                     || comp == extractors.pressure.component 
                     || (comp >= extractors.velocities.first_vector_component 
                         && comp < extractors.velocities.first_vector_component + dim) 
-                    // || comp == extractors.temperature.component
+                    || comp == extractors.temperature.component
                     || comp == extractors.phi_ch.component
                     || comp == extractors.mu_phi_ch.component
                     );
@@ -3280,7 +3307,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp96/";
+  const std::string prefix = "tmp99/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3319,6 +3346,20 @@ StokesProblem<dim>::run()
 #endif
 
         setup_initial_condition();
+        relax_phase_field = true;
+        const unsigned int n_relaxation_steps = 10;
+        if(relax_phase_field)
+          for(unsigned int i=0; i<n_relaxation_steps; ++i)
+            {
+              pcout<<" relaxation phase field "<<i<<std::endl;
+              newton_iteration();
+              old_old_solution = old_solution;              // n-1
+              old_solution     = locally_relevant_solution; // n
+              current_solution = old_solution; // u^*, newton initial guess
+            }
+        pcout<<" done relaxation phase field "<<std::endl;            
+        relax_phase_field = false;
+
 
         // {
         //   // relaxation of psi and phi
@@ -3348,7 +3389,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 170;
+      step_number = 190;
       load_checkpoint(step_number, runtime);
     }
 
@@ -3399,7 +3440,7 @@ StokesProblem<dim>::run()
         //       }
         // }
 
-        if ((step_number % output_interval == 0))
+        if ((step_number % output_interval == 0)||(step_number <21 ))
           {
             TimerOutput::Scope t(computing_timer, "output");
             output_results(step_number);

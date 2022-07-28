@@ -577,3 +577,35 @@ vel degree =2
 
 tmp 96 branch test3-para-study
 reform pressure
+
+
+tmp 97 branch test3-para-study
+reform pressure
+fix a negative sign of gamma
+
+
+tmp 98 branch test3-para-study
+reform pressure
+fix a negative sign of gamma
+density ratio 0.01
+
+tmp 99 branch test3-para-study
+reform pressure
+fix a negative sign of gamma
+density ratio 0.01
+lambda is multifiled by 
+2.46472791326 
+
+tmp 100 branch test3-para-study
+test of prerelaxation
+density ratio 0.01
+lambda is multifiled by 
+2.46472791326
+number of prerelaxation = 5
+
+tmp 101 branch test3-para-study
+test of prerelaxation
+density ratio 0.01
+lambda is multifiled by 
+2.46472791326
+number of prerelaxation = 10
