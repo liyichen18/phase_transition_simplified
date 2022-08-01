@@ -1159,7 +1159,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , boundary_temperature(melting_t)
   , ambient_pressure(0.)
   , mapping(1)
-  , static_contact_angle(numbers::PI/2.) // 73.47 degrees
+  , static_contact_angle(numbers::PI/3.) // 73.47 degrees
   , one_over_wall_relaxation_gamma(0.)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
@@ -2530,9 +2530,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             // face loop, assemble moving contact line bc
             for (const auto face_no : cell->face_indices())
               {
-                // if (cell->face(face_no)->at_boundary() &&
-                //     cell->face(face_no)->boundary_id() == wall_boundary_id)
-                if(false)
+                if (cell->face(face_no)->at_boundary() &&
+                    cell->face(face_no)->boundary_id() == wall_boundary_id)
+                // if(false)
                   {
                     fe_face_values.reinit(cell, face_no);
 #ifdef USE_AXISYMMETRY
@@ -2782,13 +2782,15 @@ void StokesProblem<dim>::newton_iteration()
   VectorType locally_owned_solution_tmp(system_rhs);
   locally_owned_solution = current_solution;
   for (unsigned int k = 1; k <= max_iter; ++k) {
-      if (residual < 1.e-8 )
+      if (residual < 1.e-6 )
         break;
       assemble_system(assemble_matrix);
       {
         TimerOutput::Scope t(computing_timer, "Direct Solve");
         try
           {
+            // if(k>3)
+            //   solver_control.set_tolerance(1.e-7);
             Timer timer(mpi_communicator);
             preconditioner.initialize(system_matrix);
             solver.solve(system_matrix,
@@ -3307,7 +3309,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp99/";
+  const std::string prefix = "tmp102/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3329,7 +3331,7 @@ StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number =200;
+    const unsigned int max_step_number =2000;
     const unsigned int output_interval = 10;
     const unsigned int checkpoint_output_interval = 10;
 
@@ -3347,7 +3349,7 @@ StokesProblem<dim>::run()
 
         setup_initial_condition();
         relax_phase_field = true;
-        const unsigned int n_relaxation_steps = 10;
+        const unsigned int n_relaxation_steps = 3;
         if(relax_phase_field)
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
             {
