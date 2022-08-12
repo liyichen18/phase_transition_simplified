@@ -1119,7 +1119,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , extractors(ComponentIndices<dim>())
   , eps(0.02)
   , test_case(testcase)
-  , n_refinement(7)
+  , n_refinement(8)
   , density_l(1.)  
   , density_s(9.162000e-01 * density_l)
   , density_g(0.01 * density_l)
@@ -1636,8 +1636,24 @@ void StokesProblem<dim>::make_boundary_constraints()
         }
 
         {
-          // boundary id=1, 3
+          //boundary id=1, 3
+          const types::boundary_id bc_id= 3;
           // zero shear stress and zero heat flux (both embedded in the weak form)
+          // when solving CH + NS, we observe larege velocity on the boundary 3,
+          // so use slip condition. 
+          ComponentMask vel_u_masked(fe.n_components(), false);
+          vel_u_masked.set(extractors.velocities.first_vector_component, true);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_boundary,
+                                                   vel_u_masked);
+
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   vel_u_masked);          
         }
         break;
       }
