@@ -334,6 +334,16 @@ namespace InlineFunctions
   }
 
   inline double
+  compute_lambda_from_h(const double rho1,
+                        const double surface_tension,
+                        const double eps,
+                        const double h)
+  {
+    // h is computed from mathematica.
+    return surface_tension * eps / (h * numbers::SQRT2 * rho1);
+  }
+
+  inline double
   compute_surface_tension_from_lambda(const double rho_plus,
                                       const double rho_minus,
                                       const double lambda,
@@ -793,7 +803,7 @@ namespace InitialConditions
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
             const double initial_solid_layer = 0.2; // has to below melting temperature
-            const double psi = 1;//0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
+            const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
 
@@ -1057,7 +1067,7 @@ private:
     std::string output_dir;
     std::string checkpoints_dir;
 
-    bool relax_phase_field = true;
+    bool relax_phase_field = false;
 
 };
 
@@ -1117,9 +1127,9 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                     TimerOutput::wall_times)
   , component_ids(ComponentIndices<dim>())
   , extractors(ComponentIndices<dim>())
-  , eps(0.02)
+  , eps(0.04)
   , test_case(testcase)
-  , n_refinement(8)
+  , n_refinement(7)
   , density_l(1.)  
   , density_s(9.162000e-01 * density_l)
   , density_g(0.01 * density_l)
@@ -1127,7 +1137,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(2e-3)
+  , present_timestep(1e-3)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
@@ -1138,16 +1148,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
   , surface_tension_psi_ac(1.)
-  , lambda_phi(InlineFunctions::compute_lambda_from_surface_tension(
-      density_l,
-      density_g,
-      surface_tension_phi_ch,
-      eps)/2.46472791326) // surface tension formula is changed, need to compute the factor. 
-  , lambda_psi(InlineFunctions::compute_lambda_from_surface_tension(
-      density_l,
-      density_s,
-      surface_tension_psi_ac,
-      eps)/2.46472791326) /*which density should be used?*/
+  , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor. 
+  , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
   , mobility_phi(1e-4)
   , mobility_psi(1e-0)
   , latent_heat(0.0)
@@ -1159,7 +1161,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , boundary_temperature(melting_t)
   , ambient_pressure(0.)
   , mapping(1)
-  , static_contact_angle(numbers::PI/3.) // 73.47 degrees
+  , static_contact_angle(numbers::PI/2.) // 73.47 degrees
   , one_over_wall_relaxation_gamma(0.001)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
@@ -1637,9 +1639,9 @@ void StokesProblem<dim>::make_boundary_constraints()
 
         {
           //boundary id=1, 3
-          const types::boundary_id bc_id= 3;
+          const types::boundary_id bc_id= 1;
           // zero shear stress and zero heat flux (both embedded in the weak form)
-          // when solving CH + NS, we observe larege velocity on the boundary 3,
+          // when solving CH + NS, we observe larege velocity on the boundary 1,
           // so use slip condition. 
           ComponentMask vel_u_masked(fe.n_components(), false);
           vel_u_masked.set(extractors.velocities.first_vector_component, true);
@@ -2338,15 +2340,15 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           //  term i
                           mat += shape_mu_phi_ch[j] * shape_mu_phi_ch[i];
                           // //  term ii
-                          // mat += (-((r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_psi_ac_theta[j]
-                          //            + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j]
-                          //            ) * latent_heat * (1. - temperature_ts/melting_t)
-                          //           ) * DimensionlessGroups::G
-                          //         + r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat/melting_t * shape_temperature_theta[j] * DimensionlessGroups::G
-                          //         + (shape_c_partial_phi_theta[j] * w35_reuse_term1
-                          //            + c_partial_phi_ch_ts * shape_temperature_theta[j] * log_t_ts_tm * DimensionlessGroups::Pi_T
-                          //            )
-                          //         ) * shape_mu_phi_ch[i];
+                          mat += (-((r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_psi_ac_theta[j]
+                                     + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j]
+                                     ) * latent_heat * (1. - temperature_ts/melting_t)
+                                    ) * DimensionlessGroups::G
+                                  + r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat/melting_t * shape_temperature_theta[j] * DimensionlessGroups::G
+                                  + (shape_c_partial_phi_theta[j] * w35_reuse_term1
+                                     + c_partial_phi_ch_ts * shape_temperature_theta[j] * log_t_ts_tm * DimensionlessGroups::Pi_T
+                                     )
+                                  ) * shape_mu_phi_ch[i];
                           //  term iii
                           mat += (-(lambda_phi * w_prime_prime_phi_ch_ts
                                     + lambda_psi * r_prime_prime_phi_ch_ts * w3_reuse_term2
@@ -2465,8 +2467,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   //  term i
                   rhs += - mu_phi_ch_star[q] * shape_mu_phi_ch[i];
                   // //  term ii
-                  // rhs += (r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
-                  //         - c_partial_phi_ch_ts * w35_reuse_term1) * shape_mu_phi_ch[i];
+                  rhs += (r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
+                          - c_partial_phi_ch_ts * w35_reuse_term1) * shape_mu_phi_ch[i];
                   //  term iii
                   rhs += (lambda_phi * w_prime_phi_ch_ts + lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
                           + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
@@ -3326,7 +3328,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp104/";
+  const std::string prefix = "tmp110/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3349,8 +3351,8 @@ StokesProblem<dim>::run()
     double runtime           = 0.;
 
     const unsigned int max_step_number =2000;
-    const unsigned int output_interval = 50;
-    const unsigned int checkpoint_output_interval = 10;
+    const unsigned int output_interval = 10;
+    const unsigned int checkpoint_output_interval = 10000;
 
     const bool start_from_checkpoint = false;
 
@@ -3366,7 +3368,7 @@ StokesProblem<dim>::run()
 
         setup_initial_condition();
         relax_phase_field = true;
-        const unsigned int n_relaxation_steps = 3;
+        const unsigned int n_relaxation_steps = 0;
         if(relax_phase_field)
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
             {
@@ -3474,7 +3476,7 @@ StokesProblem<dim>::run()
             output_results(step_number);
           }
 
-      if(step_number%5 == 0)
+      if(step_number%50000 == 0)
         save_checkpoint(step_number, runtime);
 
       if(step_number % checkpoint_output_interval == 0)
