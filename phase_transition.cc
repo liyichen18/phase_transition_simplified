@@ -3328,7 +3328,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp110/";
+  const std::string prefix = "tmp141/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3384,7 +3384,7 @@ StokesProblem<dim>::run()
               current_solution = old_solution; // u^*, newton initial guess
             }
         pcout<<" done relaxation phase field "<<std::endl;            
-        relax_phase_field = false;
+        relax_phase_field = true;
 
 
         // {
