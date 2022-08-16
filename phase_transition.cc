@@ -2208,7 +2208,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const double r_prime_prime_phi_ch_ts = InlineFunctions::r_prime_prime(phi_ch_ts);
               const double r_prime_prime_psi_ac_ts = InlineFunctions::r_prime_prime(psi_ac_ts);
               const double artificial_diffusion_coefficient
-              = InlineFunctions::r(0.0) - InlineFunctions::r(std::min(phi_ch_n[q], 0.0)); //0.1
+              = InlineFunctions::r(0.1) - InlineFunctions::r(std::min(phi_ch_n[q], 0.1)); //0.1
 #else
               const double r_alpha = 0.05;
               const double r_phi_ch_ts = InlineFunctions::new_r(phi_ch_ts, r_alpha);
@@ -2382,7 +2382,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                       + c_partial_psi_ac_ts * shape_temperature_theta[j] * log_t_ts_tm * DimensionlessGroups::Pi_T)) * shape_mu_psi_ac[i];
                           //  term iii
                           mat += (-(r_prime_phi_ch_ts * shape_phi_ch_theta[j] * lambda_psi * w_prime_psi_ac_ts
-                                    + r_phi_ch_ts * lambda_psi * w_prime_prime_psi_ac_ts * shape_psi_ac_theta[j])
+                                    + (r_phi_ch_ts + artificial_diffusion_coefficient)* lambda_psi * w_prime_prime_psi_ac_ts * shape_psi_ac_theta[j])
                                   -  (shape_pressure[j] * inv_rho_partial_psi_ac_ts + pressure_star[q] * shape_inv_rho_partial_psi_theta[j]) * DimensionlessGroups::We 
                                   ) * shape_mu_psi_ac[i];
                           //  term iv
@@ -2486,8 +2486,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (r_prime_psi_ac_ts * r_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
                           - c_partial_psi_ac_ts * w35_reuse_term1 /*multiplied by Pi_T already*/ ) * shape_mu_psi_ac[i];
                   //  term iii
-                  rhs += (r_phi_ch_ts * lambda_psi * w_prime_psi_ac_ts + DimensionlessGroups::We * pressure_star[q] * inv_rho_partial_psi_ac_ts
-                         ) * shape_mu_psi_ac[i];
+                   rhs += ((r_phi_ch_ts + artificial_diffusion_coefficient) * lambda_psi * w_prime_psi_ac_ts + DimensionlessGroups::We * pressure_star[q] * inv_rho_partial_psi_ac_ts
+                          ) * shape_mu_psi_ac[i];
                   //  term iv
                   rhs += lambda_psi * (r_phi_ch_ts + artificial_diffusion_coefficient) * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i]);
                       // +  lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i];
@@ -3328,7 +3328,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp155/";
+  const std::string prefix = "tmp156/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
