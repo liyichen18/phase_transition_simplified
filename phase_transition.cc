@@ -1132,12 +1132,12 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , n_refinement(7)
   , density_l(1.)  
   , density_s(9.162000e-01 * density_l)
-  , density_g(0.1 * density_l)
+  , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(1e-4)
+  , present_timestep(1e-3)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
@@ -1150,8 +1150,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , surface_tension_psi_ac(0.1)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor. 
   , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
-  , mobility_phi(1e-3) //(1e-4)
-  , mobility_psi(1e-0) //1e-0
+  , mobility_phi(1e-4)
+  , mobility_psi(1e-0)
   , latent_heat(0.0)
   , melting_t(1.)
   , k_l(1.) //  thermal_conductivity(1.)
@@ -2351,9 +2351,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                   ) * shape_mu_phi_ch[i];
                           //  term iii
                           mat += (-(lambda_phi * w_prime_prime_phi_ch_ts
-                                    + lambda_psi * r_prime_prime_phi_ch_ts * w3_reuse_term2
+                                    //+ lambda_psi * r_prime_prime_phi_ch_ts * w3_reuse_term2
                                     ) * shape_phi_ch_theta[j]
-                                  - lambda_psi * r_prime_phi_ch_ts * (w_prime_psi_ac_ts * shape_psi_ac_theta[j] + grad_psi_ac_ts * grad_shape_psi_ac_theta[j])
+                                  //- lambda_psi * r_prime_phi_ch_ts * (w_prime_psi_ac_ts * shape_psi_ac_theta[j] + grad_psi_ac_ts * grad_shape_psi_ac_theta[j])
                                   - (shape_pressure[j] * inv_rho_partial_phi_ch_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j]
                                      ) * DimensionlessGroups::We
                                   ) * shape_mu_phi_ch[i];
@@ -2470,7 +2470,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
                           - c_partial_phi_ch_ts * w35_reuse_term1) * shape_mu_phi_ch[i];
                   //  term iii
-                  rhs += (lambda_phi * w_prime_phi_ch_ts + lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
+                  rhs += (lambda_phi * w_prime_phi_ch_ts 
+                         //+ lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
                           + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
                   //  term iv
                   rhs += lambda_phi * (grad_phi_ch_ts * grad_shape_mu_phi_ch[i])
@@ -3332,7 +3333,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp185/";
+  const std::string prefix = "tmp186/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3377,7 +3378,7 @@ StokesProblem<dim>::run()
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
             {
               pcout<<" relaxation phase field "<<i<<std::endl;
-              present_timestep = 0.001;//0.005
+              present_timestep = 0.005;
               // if(i==0)
               //   theta = 1.;
               // else 
