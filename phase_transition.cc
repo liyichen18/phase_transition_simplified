@@ -802,7 +802,7 @@ namespace InitialConditions
             const double d = R - r;
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.7; // has to below melting temperature
+            const double initial_solid_layer = 0.2; // has to below melting temperature
             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
@@ -1132,7 +1132,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , n_refinement(7)
   , density_l(1.)  
   , density_s(9.162000e-01 * density_l)
-  , density_g(0.1 * density_l)
+  , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
@@ -2349,14 +2349,14 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                      + c_partial_phi_ch_ts * shape_temperature_theta[j] * log_t_ts_tm * DimensionlessGroups::Pi_T
                                      )
                                   ) * shape_mu_phi_ch[i];
-                          //  term iii
-                          mat += (-(lambda_phi * w_prime_prime_phi_ch_ts
-                                    + lambda_psi * r_prime_prime_phi_ch_ts * w3_reuse_term2
-                                    ) * shape_phi_ch_theta[j]
-                                  - lambda_psi * r_prime_phi_ch_ts * (w_prime_psi_ac_ts * shape_psi_ac_theta[j] + grad_psi_ac_ts * grad_shape_psi_ac_theta[j])
-                                  - (shape_pressure[j] * inv_rho_partial_phi_ch_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j]
-                                     ) * DimensionlessGroups::We
-                                  ) * shape_mu_phi_ch[i];
+                         //  term iii
+                         mat += (-(lambda_phi * w_prime_prime_phi_ch_ts
+                                   //+ lambda_psi * r_prime_prime_phi_ch_ts * w3_reuse_term2
+                                   ) * shape_phi_ch_theta[j]
+                                 //- lambda_psi * r_prime_phi_ch_ts * (w_prime_psi_ac_ts * shape_psi_ac_theta[j] + grad_psi_ac_ts * grad_shape_psi_ac_theta[j])
+                                 - (shape_pressure[j] * inv_rho_partial_phi_ch_ts + pressure_star[q] * shape_inv_rho_partial_phi_theta[j]
+                                    ) * DimensionlessGroups::We
+                                 ) * shape_mu_phi_ch[i];
                           //  term iv
                           mat += - lambda_phi * (grad_shape_phi_ch_theta[j] * grad_shape_mu_phi_ch[i]);
                               // -  lambda_phi * shape_rho_theta[j] * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i]
@@ -2469,9 +2469,10 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   // //  term ii
                   rhs += (r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
                           - c_partial_phi_ch_ts * w35_reuse_term1) * shape_mu_phi_ch[i];
-                  //  term iii
-                  rhs += (lambda_phi * w_prime_phi_ch_ts + lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
-                          + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
+                 //  term iii
+                 rhs += (lambda_phi * w_prime_phi_ch_ts
+                        //+ lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
+                         + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
                   //  term iv
                   rhs += lambda_phi * (grad_phi_ch_ts * grad_shape_mu_phi_ch[i]);
                       // +  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i];
@@ -3328,7 +3329,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp197/";
+  const std::string prefix = "tmp198/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
