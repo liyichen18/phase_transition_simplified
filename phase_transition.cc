@@ -1132,7 +1132,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , n_refinement(7)
   , density_l(1.)  
   , density_s(9.162000e-01 * density_l)
-  , density_g(1. * density_l)
+  , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
@@ -1150,7 +1150,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , surface_tension_psi_ac(0.1)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor. 
   , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
-  , mobility_phi(1e-4)
+  , mobility_phi(1e-3)
   , mobility_psi(1e-0)
   , latent_heat(0.0)
   , melting_t(1.)
@@ -3329,7 +3329,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp200/";
+  const std::string prefix = "tmp201/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3374,7 +3374,7 @@ StokesProblem<dim>::run()
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
             {
               pcout<<" relaxation phase field "<<i<<std::endl;
-              present_timestep = 0.005;
+              present_timestep = 0.001;
               // if(i==0)
               //   theta = 1.;
               // else 
