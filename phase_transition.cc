@@ -809,7 +809,7 @@ namespace InitialConditions
  
            const double d1 = x - a;
            const double phi = 1 - 0.5 * (1. + std::tanh(d1/eps1));
-           const double initial_solid_layer = 1; // has to below melting temperature
+           const double initial_solid_layer = 0.2; // has to below melting temperature
            const double psi =  0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
@@ -2389,7 +2389,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                       + c_partial_psi_ac_ts * shape_temperature_theta[j] * log_t_ts_tm * DimensionlessGroups::Pi_T)) * shape_mu_psi_ac[i];
                           //  term iii
                           mat += (-(r_prime_phi_ch_ts * shape_phi_ch_theta[j] * lambda_psi * w_prime_psi_ac_ts
-                                    + (r_phi_ch_ts + artificial_diffusion_coefficient)* lambda_psi * w_prime_prime_psi_ac_ts * shape_psi_ac_theta[j])
+                                    + r_phi_ch_ts * lambda_psi * w_prime_prime_psi_ac_ts * shape_psi_ac_theta[j])
                                   -  (shape_pressure[j] * inv_rho_partial_psi_ac_ts + pressure_star[q] * shape_inv_rho_partial_psi_theta[j]) * DimensionlessGroups::We 
                                   ) * shape_mu_psi_ac[i];
                           //  term iv
@@ -2480,9 +2480,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (lambda_phi * w_prime_phi_ch_ts + lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
                           + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
                   //  term iv
-                  rhs += lambda_phi * (grad_phi_ch_ts * grad_shape_mu_phi_ch[i])
-                         +1 / rho_ts * (- lambda_phi * grad_phi_ch_ts * grad_psi_ac_ts * rho_partial_psi_ac_ts
-                                        +r_phi_ch_ts * lambda_psi * grad_psi_ac_ts *grad_psi_ac_ts *rho_partial_phi_ch_ts) * shape_mu_phi_ch[i];
+                  rhs += lambda_phi * (grad_phi_ch_ts * grad_shape_mu_phi_ch[i]);
                       // +  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i];
 
                   // w4
@@ -2495,12 +2493,10 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (r_prime_psi_ac_ts * r_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
                           - c_partial_psi_ac_ts * w35_reuse_term1 /*multiplied by Pi_T already*/ ) * shape_mu_psi_ac[i];
                   //  term iii
-                   rhs += ((r_phi_ch_ts + artificial_diffusion_coefficient) * lambda_psi * w_prime_psi_ac_ts + DimensionlessGroups::We * pressure_star[q] * inv_rho_partial_psi_ac_ts
-                          ) * shape_mu_psi_ac[i];
+                  rhs += (r_phi_ch_ts * lambda_psi * w_prime_psi_ac_ts + DimensionlessGroups::We * pressure_star[q] * inv_rho_partial_psi_ac_ts
+                         ) * shape_mu_psi_ac[i];
                   //  term iv
-                  rhs += lambda_psi * (r_phi_ch_ts + artificial_diffusion_coefficient) * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i])
-                          +1 / rho_ts * (lambda_phi * grad_phi_ch_ts * grad_phi_ch_ts * rho_partial_psi_ac_ts
-                                         - r_phi_ch_ts * lambda_psi * grad_psi_ac_ts *grad_phi_ch_ts * rho_partial_phi_ch_ts) * shape_mu_psi_ac[i];
+                  rhs += lambda_psi * (r_phi_ch_ts + artificial_diffusion_coefficient) * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i]);
                       // +  lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i];
                   if(!relax_phase_field)
                   {
@@ -3339,7 +3335,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp211/";
+  const std::string prefix = "tmp212/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
