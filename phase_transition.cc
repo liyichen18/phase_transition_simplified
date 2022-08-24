@@ -27,7 +27,7 @@
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
 #define USE_AXISYMMETRY // axisymmetric implementation
-#define USE_NEW_R
+//#define USE_NEW_R
 
 namespace LA
 {
@@ -1150,7 +1150,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , surface_tension_psi_ac(0.1)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor. 
   , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
-  , mobility_phi(1e-4)
+  , mobility_phi(1e-3)
   , mobility_psi(1e-0)
   , latent_heat(0.0)
   , melting_t(1.)
@@ -3351,7 +3351,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp216/";
+  const std::string prefix = "tmp217/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
