@@ -3351,7 +3351,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp217/";
+  const std::string prefix = "tmp218/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3396,7 +3396,7 @@ StokesProblem<dim>::run()
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
             {
               pcout<<" relaxation phase field "<<i<<std::endl;
-              present_timestep = 0.005;
+              present_timestep = 0.001;
               // if(i==0)
               //   theta = 1.;
               // else 
