@@ -809,8 +809,8 @@ namespace InitialConditions
 
             const double d1 = x - a;
             const double phi = 1 - 0.5 * (1. + std::tanh(d1/eps1));
-            const double initial_solid_layer = 0.2; // has to below melting temperature
-            const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1)); 
+            const double initial_solid_layer = 1; // has to below melting temperature
+            const double psi =  0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1)); 
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
 
@@ -1138,7 +1138,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , test_case(testcase)
   , n_refinement(7)
   , density_l(1.)  
-  , density_s(9.162000e-01 * density_l)
+  , density_s(1. * density_l)
   , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
@@ -3358,7 +3358,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp222/";
+  const std::string prefix = "tmp224/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
