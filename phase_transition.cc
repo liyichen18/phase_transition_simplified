@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-#define USE_AXISYMMETRY // axisymmetric implementation
+//#define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
 namespace LA
@@ -1140,7 +1140,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , n_refinement(7)
   , density_l(1.)  
   , density_s(1. * density_l)
-  , density_g(0.1 * density_l)
+  , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
@@ -3336,7 +3336,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp229/";
+  const std::string prefix = "tmp230/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
