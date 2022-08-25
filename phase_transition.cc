@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-//#define USE_AXISYMMETRY // axisymmetric implementation
+#define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
 namespace LA
@@ -1140,7 +1140,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , n_refinement(7)
   , density_l(1.)  
   , density_s(1. * density_l)
-  , density_g(0.1 * density_l)
+  , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
@@ -1665,6 +1665,26 @@ void StokesProblem<dim>::make_boundary_constraints()
                                                    constraints_newton_update,
                                                    vel_u_masked);          
         }
+       {
+          //boundary id=1, 3
+          const types::boundary_id bc_id= 3;
+          // zero shear stress and zero heat flux (both embedded in the weak form)
+          // when solving CH + NS, we observe larege velocity on the boundary 1,
+          // so use slip condition. 
+          ComponentMask vel_v_masked(fe.n_components(), false);
+          vel_v_masked.set(extractors.velocities.first_vector_component + 1, true);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_boundary,
+                                                   vel_v_masked);
+
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   vel_v_masked);          
+        }        
         break;
       }
     default:
@@ -3336,7 +3356,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp231/";
+  const std::string prefix = "tmp232/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
