@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-//#define USE_AXISYMMETRY // axisymmetric implementation
+#define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
 namespace LA
@@ -803,7 +803,7 @@ namespace InitialConditions
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
             const double initial_solid_layer = 0.2; // has to below melting temperature
-            const double psi = 1 - 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
+            const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
 
@@ -2546,13 +2546,13 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                     // axi-1
                     rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
                           + (pressure_star[q] * shape_vel[i][0] * one_over_r)
-                          + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0])
+                          + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0]* one_over_r ) //p105 
                           - (eta_ts * 2. * vel_ts[0] * one_over_r * shape_vel[i][0] * one_over_r);
                     // axi-3
                     rhs += vel_ts[0] * one_over_r * shape_pressure[i];
 
                     // reformulated pressure term
-                    rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r;
+                    rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r; //note1
                   }
                   
 #endif
@@ -3348,7 +3348,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp242/";
+  const std::string prefix = "tmp243/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
