@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-#define USE_AXISYMMETRY // axisymmetric implementation
+//#define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
 namespace LA
@@ -2378,10 +2378,21 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                      ) * DimensionlessGroups::We
                                   ) * shape_mu_phi_ch[i];
                           //  term iv
-                          mat += - lambda_phi * (grad_shape_phi_ch_theta[j] * grad_shape_mu_phi_ch[i]);
+                          mat += - lambda_phi * (grad_shape_phi_ch_theta[j] * grad_shape_mu_phi_ch[i])
                               // -  lambda_phi * shape_rho_theta[j] * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i]
                               // -  lambda_phi * rho_ts * (grad_shape_phi_ch_theta[j] * grad_inv_rho_ts) * shape_mu_phi_ch[i]
                               // -  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi_ch[i];
+                                 - lambda_phi * grad_psi_ac_ts * rho_ts * inv_rho_partial_psi_ac_ts * grad_shape_phi_ch_theta[j] * shape_mu_phi_ch[i]
+                                 - lambda_phi * grad_phi_ch_ts *  rho_ts * inv_rho_partial_psi_ac_ts * grad_shape_psi_ac_theta[j] * shape_mu_phi_ch[i]
+                                 - lambda_phi * grad_phi_ch_ts * grad_psi_ac_ts * inv_rho_partial_psi_ac_ts * shape_rho_theta[j] * shape_mu_phi_ch[i]
+                                 - lambda_phi * grad_phi_ch_ts * grad_psi_ac_ts * shape_inv_rho_partial_psi_theta[j] * shape_mu_phi_ch[i]
+                                 + lambda_psi *  grad_psi_ac_ts *  grad_psi_ac_ts * rho_ts * inv_rho_partial_phi_ch_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * shape_mu_phi_ch[i]
+                                 + lambda_psi * r_phi_ch_ts  *  grad_psi_ac_ts * rho_ts * inv_rho_partial_phi_ch_ts *inv_rho_partial_psi_ac_ts * grad_shape_psi_ac_theta[j] * shape_mu_phi_ch[i]
+                                 + lambda_psi * r_phi_ch_ts * grad_psi_ac_ts * rho_ts * inv_rho_partial_phi_ch_ts * grad_shape_psi_ac_theta[j] * shape_mu_phi_ch[i]
+                                 + lambda_psi * r_phi_ch_ts * grad_psi_ac_ts *  grad_psi_ac_ts * inv_rho_partial_phi_ch_ts * shape_rho_theta[j] * shape_mu_phi_ch[i]
+                                 + lambda_psi * r_phi_ch_ts * grad_psi_ac_ts *  grad_psi_ac_ts * rho_ts * shape_inv_rho_partial_phi_theta[j] * shape_mu_phi_ch[i];
+
+
 
                           // todo: add face integral term v
 
@@ -2412,6 +2423,16 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                               // - lambda_psi * rho_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i]
                               // - lambda_psi * rho_ts * r_phi_ch_ts * (grad_shape_psi_ac_theta[j] * grad_inv_rho_ts) * shape_mu_psi_ac[i]
                               // - lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_shape_inv_rho_theta[j]) * shape_mu_psi_ac[i];
+                                 + lambda_phi * grad_phi_ch_ts * rho_ts * inv_rho_partial_psi_ac_ts * grad_shape_phi_ch_theta[j] * shape_mu_psi_ac[i]
+                                 + lambda_phi * grad_phi_ch_ts *  rho_ts * inv_rho_partial_psi_ac_ts * grad_shape_phi_ch_theta[j] * shape_mu_psi_ac[i]
+                                 + lambda_phi * grad_phi_ch_ts * grad_phi_ch_ts * inv_rho_partial_psi_ac_ts * shape_rho_theta[j] * shape_mu_psi_ac[i]
+                                 + lambda_phi * grad_phi_ch_ts * grad_phi_ch_ts * shape_inv_rho_partial_psi_theta[j] * shape_mu_psi_ac[i]
+                                 - lambda_psi *  grad_psi_ac_ts *  grad_phi_ch_ts * rho_ts * inv_rho_partial_phi_ch_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * shape_mu_psi_ac[i]
+                                 - lambda_psi * r_phi_ch_ts  *  grad_phi_ch_ts * rho_ts * inv_rho_partial_phi_ch_ts *inv_rho_partial_psi_ac_ts * grad_shape_psi_ac_theta[j] * shape_mu_psi_ac[i]
+                                 - lambda_psi * r_phi_ch_ts * grad_psi_ac_ts * rho_ts * inv_rho_partial_phi_ch_ts * grad_shape_phi_ch_theta[j] * shape_mu_psi_ac[i]
+                                 - lambda_psi * r_phi_ch_ts * grad_psi_ac_ts *  grad_phi_ch_ts * inv_rho_partial_phi_ch_ts * shape_rho_theta[j] * shape_mu_psi_ac[i]
+                                 - lambda_psi * r_phi_ch_ts * grad_psi_ac_ts *  grad_phi_ch_ts * rho_ts * shape_inv_rho_partial_phi_theta[j] *shape_mu_psi_ac[i];
+
 
                           // w6
                           mat += (shape_rho_theta[j] * D_vel_Dt_ts
@@ -2493,9 +2514,10 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (lambda_phi * w_prime_phi_ch_ts + lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
                           + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
                   //  term iv
-                  rhs += lambda_phi * (grad_phi_ch_ts * grad_shape_mu_phi_ch[i]);
+                  rhs += lambda_phi * (grad_phi_ch_ts * grad_shape_mu_phi_ch[i])
                       // +  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i];
-
+                          + (lambda_phi * grad_phi_ch_ts * grad_psi_ac_ts * rho_ts * inv_rho_partial_psi_ac_ts
+                          -lambda_psi * r_phi_ch_ts * grad_psi_ac_ts *  grad_psi_ac_ts * rho_ts * inv_rho_partial_phi_ch_ts ) * shape_mu_phi_ch[i];
                   // w4
                   rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_ac_star[q]) * shape_psi_ac[i];
 
@@ -2509,8 +2531,11 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += (r_phi_ch_ts * lambda_psi * w_prime_psi_ac_ts + DimensionlessGroups::We * pressure_star[q] * inv_rho_partial_psi_ac_ts
                          ) * shape_mu_psi_ac[i];
                   //  term iv
-                  rhs += lambda_psi * (r_phi_ch_ts + artificial_diffusion_coefficient) * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i]);
+                  rhs += lambda_psi * (r_phi_ch_ts + artificial_diffusion_coefficient) * (grad_psi_ac_ts * grad_shape_mu_psi_ac[i])
                       // +  lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i];
+                         + (lambda_phi * grad_phi_ch_ts * grad_phi_ch_ts * rho_ts * inv_rho_partial_psi_ac_ts
+                         -lambda_psi * r_phi_ch_ts * grad_psi_ac_ts *  grad_phi_ch_ts  * rho_ts * inv_rho_partial_phi_ch_ts ) * shape_mu_phi_ch[i];
+
                   if(!relax_phase_field)
                   {
                     // w6
@@ -2546,13 +2571,13 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                     // axi-1
                     rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
                           + (pressure_star[q] * shape_vel[i][0] * one_over_r)
-                          + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0]* one_over_r ) //p105 
+                          + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0])
                           - (eta_ts * 2. * vel_ts[0] * one_over_r * shape_vel[i][0] * one_over_r);
                     // axi-3
                     rhs += vel_ts[0] * one_over_r * shape_pressure[i];
 
                     // reformulated pressure term
-                    rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r; //note1
+                    rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r;
                   }
                   
 #endif
@@ -3348,7 +3373,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp243/";
+  const std::string prefix = "tmp245/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
