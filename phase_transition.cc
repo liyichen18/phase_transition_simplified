@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-#define USE_AXISYMMETRY // axisymmetric implementation
+//#define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
 namespace LA
@@ -1137,7 +1137,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(1e-5)
+  , present_timestep(1e-3)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
@@ -1153,7 +1153,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , mobility_phi(1e-4)
   , mobility_psi(1e-0)
   , latent_heat(0.0)
-  , melting_t(1.)
+  , melting_t(0.8)
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
@@ -2448,11 +2448,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                  - (shape_pressure[j] * shape_vel[i][0] * one_over_r)
                                  - 2./3. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
                                                       * (shape_div_vel[i] + shape_vel[i][0] * one_over_r)
-                                 //+ 2. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
-                                 // * shape_vel[i][0] * one_over_r;
-                                 + (shape_eta_theta[j] *(2. * vel_ts[0] * one_over_r - 2./3. * div_vel_ts) 
-                                    + eta_ts *(2. * one_over_r * shape_vel_theta[j][0] - 2./3. * theta * shape_div_vel[j])) 
-                                 * shape_vel[i][0] * one_over_r;
+                                 + 2. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
+                                   * shape_vel[i][0] * one_over_r;
                           // axi-4
                           mat += - shape_vel_theta[j][0] * one_over_r * shape_pressure[i];
                           // pressure reformulated term
@@ -2529,13 +2526,13 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                     // axi-1
                     rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
                           + (pressure_star[q] * shape_vel[i][0] * one_over_r)
-                          + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0]* one_over_r ) //p105
-                          - (eta_ts * (2. * vel_ts[0] * one_over_r - 2./3. * div_vel_ts) * shape_vel[i][0] * one_over_r);  //8/29/2022
+                          + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0])
+                          - (eta_ts * 2. * vel_ts[0] * one_over_r * shape_vel[i][0] * one_over_r);
                     // axi-3
                     rhs += vel_ts[0] * one_over_r * shape_pressure[i];
 
                     // reformulated pressure term
-                    rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r; //note1
+                    rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r;
                   }
                   
 #endif
@@ -3331,7 +3328,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp251/";
+  const std::string prefix = "tmp252/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
