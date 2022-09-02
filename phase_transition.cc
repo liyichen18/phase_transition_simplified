@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-#define USE_AXISYMMETRY // axisymmetric implementation
+//#define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
 namespace LA
@@ -918,13 +918,13 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 1.; //1.159722e+06; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 1.; //1.452778e+04; // sensible heat / surface tension (AC/CH)
-  const double Pi_eta = 1.; //1.090104e+06; // sensible heat / visicosity
+  const double G      = 1.; //1.; //1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 1.; //1.452778e+04; // sensible heat / surface tension (AC/CH)	  
+  const double Pi_eta = 1.; //1.090104e+06; // sensible heat / visicosity	  
   const double Ste    = 1.; //1.252695e-02; // Stefan number
-  const double We     = 1.; //1.000000e+00; // Weber number
-  const double Re     = 1.; //7.503584e+01; // Reynolds number
-  const double Pe     = 1.; //1.010063e+03; // Peclet number
+  const double We     = 1.; //1.000000e+00; // Weber numbe	  
+  const double Re     = 1.; //7.503584e+01; // Reynolds number	  
+  const double Pe     = 1.; //1.010063e+03; // Peclet number	 
 
   const double one_over_Pe = 1.0/Pe;
   const double one_over_Pi_T = 1.0 / Pi_T;
@@ -1153,12 +1153,12 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , mobility_phi(1e-4)
   , mobility_psi(1e-0)
   , latent_heat(0.01)
-  , melting_t(100)
+  , melting_t(100.)
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
-  , initial_temperature(90)
-  , boundary_temperature(90) //wall
+  , initial_temperature(90.)
+  , boundary_temperature(90.)
   , ambient_pressure(0.)
   , mapping(1)
   , static_contact_angle(numbers::PI/2.) // 73.47 degrees
@@ -3328,7 +3328,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp257/";
+  const std::string prefix = "tmp258/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3368,7 +3368,7 @@ StokesProblem<dim>::run()
 
         setup_initial_condition();
         relax_phase_field = true;
-        const unsigned int n_relaxation_steps = 0;
+        const unsigned int n_relaxation_steps = 3;
         if(relax_phase_field)
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
             {
