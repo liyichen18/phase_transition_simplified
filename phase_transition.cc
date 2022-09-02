@@ -1141,11 +1141,11 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
-  , cs(4.899618e-01)
-  , cg(2.404398e-01)
+  , cs(1.) //(4.899618e-01)
+  , cg(1.) //(2.404398e-01)
   , eta_l(1.)
-  , eta_s(100.)
-  , eta_g(9.670022e-03)
+  , eta_s(1.) //(100.)
+  , eta_g(1.) //(9.670022e-03)
   , surface_tension_phi_ch(1.)
   , surface_tension_psi_ac(0.1)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor. 
@@ -1155,8 +1155,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , latent_heat(0.01)
   , melting_t(100.)
   , k_l(1.) //  thermal_conductivity(1.)
-  , k_s(3.994602e+00)
-  , k_g(4.383266e-02)
+  , k_s(1.) //(3.994602e+00)
+  , k_g(1.) //(4.383266e-02)
   , initial_temperature(90.)
   , boundary_temperature(90.)
   , ambient_pressure(0.)
@@ -3328,7 +3328,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp258/";
+  const std::string prefix = "tmp259/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
