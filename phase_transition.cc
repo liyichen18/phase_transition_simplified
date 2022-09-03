@@ -918,13 +918,13 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      = 1.; //1.; //1.159722e+06; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   = 1.; //1.452778e+04; // sensible heat / surface tension (AC/CH)	  
-  const double Pi_eta = 1.; //1.090104e+06; // sensible heat / visicosity	  
-  const double Ste    = 1.; //1.252695e-02; // Stefan number
-  const double We     = 1.; //1.000000e+00; // Weber numbe	  
-  const double Re     = 1.; //7.503584e+01; // Reynolds number	  
-  const double Pe     = 1.; //1.010063e+03; // Peclet number	 
+  const double G      =1.;// 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   =1.;// 1.452778e+04; // sensible heat / surface tension (AC/CH)
+  const double Pi_eta =1.;//  1.090104e+06; // sensible heat / visicosity
+  const double Ste    =1.;//  1.252695e-02; // Stefan number
+  const double We     =1.;//  1.000000e+00; // Weber number
+  const double Re     =1.;//  7.503584e+01; // Reynolds number
+  const double Pe     =1.;//  1.010063e+03; // Peclet number
 
   const double one_over_Pe = 1.0/Pe;
   const double one_over_Pi_T = 1.0 / Pi_T;
@@ -1141,11 +1141,11 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
-  , cs(1.) //(4.899618e-01)
-  , cg(1.) //(2.404398e-01)
+  , cs(4.899618e-01)
+  , cg(2.404398e-01)
   , eta_l(1.)
-  , eta_s(1.) //(100.)
-  , eta_g(1.) //(9.670022e-03)
+  , eta_s(100.)
+  , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
   , surface_tension_psi_ac(0.1)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor. 
@@ -1155,8 +1155,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , latent_heat(0.01)
   , melting_t(100.)
   , k_l(1.) //  thermal_conductivity(1.)
-  , k_s(1.) //(3.994602e+00)
-  , k_g(1.) //(4.383266e-02)
+  , k_s(3.994602e+00)
+  , k_g(4.383266e-02)
   , initial_temperature(98.)
   , boundary_temperature(98.)
   , ambient_pressure(0.)
@@ -3328,7 +3328,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp261/";
+  const std::string prefix = "tmp262/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
