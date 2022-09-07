@@ -1132,7 +1132,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , n_refinement(7)
   , density_l(1.)  
   , density_s(9.162000e-01 * density_l)
-  , density_g(0.1 * density_l)
+  , density_g(1. * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
@@ -1148,7 +1148,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
   , surface_tension_psi_ac(0.1)
-  , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0474846)) // surface tension formula is changed, need to compute the factor. 
+  , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.166667)) // surface tension formula is changed, need to compute the factor. 
   , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
   , mobility_phi(1e-4)
   , mobility_psi(1e-0)
@@ -1157,8 +1157,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
-  , initial_temperature(98) //(melting_t)
-  , boundary_temperature(98) //(melting_t)
+  , initial_temperature(100.)
+  , boundary_temperature(100.)
   , ambient_pressure(0.)
   , mapping(1)
   , static_contact_angle(numbers::PI/2.) // 73.47 degrees
@@ -3328,7 +3328,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp281/";
+  const std::string prefix = "tmp282/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
