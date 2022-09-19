@@ -1157,7 +1157,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
-  , initial_temperature(melting_t-20.)
+  , initial_temperature(melting_t+20.)
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
@@ -2142,7 +2142,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const double rho_partial_phi_ch_ts = -rho_ts_square * inv_rho_partial_phi_ch_ts;
               const double rho_partial_psi_ac_ts = -rho_ts_square * inv_rho_partial_psi_ac_ts;
 
-              const double material_derivative_ts = ((phi_ch_star[q] - phi_ch_n[q])/present_timestep + vel_ts * grad_phi_ch_ts);
+//              const double material_derivative_ts = ((phi_ch_star[q] - phi_ch_n[q])/present_timestep + vel_ts * grad_phi_ch_ts);
+              const double material_derivative_ts = ((phi_ch_star[q] - phi_ch_n[q])/present_timestep + vel_bar * grad_phi_ch_ts);              
 //              {
 //                std::cout<<" phi_ch_star: "<<phi_ch_star[q]
 //                           << " phi_ch_n: "<<phi_ch_n[q]
@@ -2236,7 +2237,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const Tensor<1,dim> D_vel_Dt_ts = (vel_star[q] - vel_n[q])/present_timestep +  grad_vel_ts * vel_bar
                   + 0.5 * div_vel_bar * vel_ts;
 
-              const double D_temperature_Dt_ts = (temperature_star[q] - temperature_n[q])/present_timestep + vel_ts * grad_temperature_ts;
+//              const double D_temperature_Dt_ts = (temperature_star[q] - temperature_n[q])/present_timestep + vel_ts * grad_temperature_ts;
+              const double D_temperature_Dt_ts = (temperature_star[q] - temperature_n[q])/present_timestep + vel_bar * grad_temperature_ts;
 
               const double log_t_ts_tm = std::log(temperature_ts/melting_t);
               Assert(numbers::is_finite(log_t_ts_tm), ExcMessage("log_t_ts_tm is not finite, which means temperature is negative"));
@@ -2246,7 +2248,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const double w3_reuse_term2 = w_psi_ac_ts + 0.5 * (grad_psi_ac_ts * grad_psi_ac_ts);
 
               // (psi_ac_ts - psi_ac_n)/dt + vel_ts * grad_psi_ac_ts
-              const double D_psi_D_t_ts = (psi_ac_star[q] - psi_ac_n[q])/present_timestep + vel_ts * grad_psi_ac_ts;
+//              const double D_psi_D_t_ts = (psi_ac_star[q] - psi_ac_n[q])/present_timestep + vel_ts * grad_psi_ac_ts;
+              const double D_psi_D_t_ts = (psi_ac_star[q] - psi_ac_n[q])/present_timestep + vel_bar * grad_psi_ac_ts;
 
               for (unsigned int k = 0; k < dofs_per_cell; ++k)
                 {
@@ -2288,8 +2291,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                       + inv_rho_partial2_psi2_ts * shape_psi_ac_theta[k];
 
                   shape_h_ts[k] = shape_rho_theta[k] * material_derivative_ts
-                      + rho_ts * (shape_phi_ch[k]/present_timestep + shape_vel_theta[k] * grad_phi_ch_ts
-                                  + vel_ts * grad_shape_phi_ch_theta[k]);
+//                      + rho_ts * (shape_phi_ch[k]/present_timestep + shape_vel_theta[k] * grad_phi_ch_ts
+//                                  + vel_ts * grad_shape_phi_ch_theta[k]);
+                      + rho_ts * (shape_phi_ch[k]/present_timestep + vel_bar* grad_shape_phi_ch_theta[k]);
 //                  {
 //                    std::cout<<" shape_rho_theta: "<< shape_rho_theta[k]
 //                               << " material_derivative_ts " << material_derivative_ts
@@ -2366,8 +2370,9 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           // todo: add face integral term v
 
                           // w4
-                          mat += (rho_ts * (shape_psi_ac[j]/present_timestep + vel_ts * grad_shape_psi_ac_theta[j]
-                                            + shape_vel_theta[j] * grad_psi_ac_ts)
+//                          mat += (rho_ts * (shape_psi_ac[j]/present_timestep + vel_ts * grad_shape_psi_ac_theta[j]
+//                                            + shape_vel_theta[j] * grad_psi_ac_ts)
+                          mat += (rho_ts * (shape_psi_ac[j]/present_timestep + vel_bar * grad_shape_psi_ac_theta[j])
                                   + shape_rho_theta[j] * D_psi_D_t_ts + mobility_psi * shape_mu_psi_ac[j]) * shape_psi_ac[i];
 
                           // w5
@@ -2410,8 +2415,10 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           // w8
                           //  term i
                           mat += ((shape_rho_theta[j] * c_ts + rho_ts * shape_c_theta[j]) * D_temperature_Dt_ts
-                                  +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
-                                                      + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
+//                                  +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
+//                                                      + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
+                                  +  rho_ts * c_ts * (shape_temperature[j]/present_timestep  
+                                                      + vel_bar * grad_shape_temperature_theta[j])) * shape_temperature[i];
                           //  term ii
                           mat +=(-2. * ( mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_mu_phi_ch[j])
                                          + mobility_psi * mu_psi_ac_star[q] * shape_mu_psi_ac[j]) * DimensionlessGroups::one_over_Pi_T
@@ -2446,14 +2453,17 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           mat += + 0.5 * vel_bar[0] * one_over_r * ((shape_rho_theta[j] * vel_ts 
                                                                       + rho_ts * shape_vel_theta[j]) * shape_vel[i])
                                  - (shape_pressure[j] * shape_vel[i][0] * one_over_r)
-                                 - 2./3. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
-                                                      * (shape_div_vel[i] + shape_vel[i][0] * one_over_r)
-                                 + 2. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
-                                   * shape_vel[i][0] * one_over_r;
+                                 + ((shape_eta_theta[j]*(4./3.*vel_ts[0]*one_over_r-2./3.*div_vel_ts)
+                                               +eta_ts*(4./3.*shape_vel_theta[j][0]*one_over_r-2./3.*theta*shape_div_vel[j]))
+                                               * shape_vel[i][0] * one_over_r
+                                   -2./3. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
+                                               * shape_div_vel[i])*DimensionlessGroups::one_over_Re;
+
                           // axi-4
                           mat += - shape_vel_theta[j][0] * one_over_r * shape_pressure[i];
                           // pressure reformulated term
-                          mat += (shape_rho_theta[j] * pressure_reformulated_term + rho_ts * shape_pressure_reformulated_term[j]) * shape_vel[i][0] * one_over_r;
+                          mat += (shape_rho_theta[j] * pressure_reformulated_term + rho_ts * shape_pressure_reformulated_term[j]) * shape_vel[i][0] 
+                               * one_over_r*DimensionlessGroups::one_over_We;
 #endif
                           cell_matrix(i,j) += mat * jxwq;
 
@@ -2513,8 +2523,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                     //  term iii
                     rhs += - k_ts * grad_temperature_ts * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
                     //  term iv
-                    rhs += - (latent_heat * r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
-                              - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
+                    rhs += - (latent_heat * (r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
+                              - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q]))
                         * temperature_ts/melting_t * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
                     // term v
                     rhs += - (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
@@ -2526,13 +2536,14 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                     // axi-1
                     rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
                           + (pressure_star[q] * shape_vel[i][0] * one_over_r)
-                          + eta_ts * 2./3. * vel_ts[0] * one_over_r * (shape_div_vel[i] + shape_vel[i][0])
-                          - (eta_ts * 2. * vel_ts[0] * one_over_r * shape_vel[i][0] * one_over_r);
+                          - (eta_ts*(4./3.*vel_ts[0]*one_over_r-2./3.*div_vel_ts) * shape_vel[i][0] * one_over_r
+                                   -2./3. * eta_ts * vel_ts[0]*one_over_r* shape_div_vel[i])*DimensionlessGroups::one_over_Re;                      
+
                     // axi-3
                     rhs += vel_ts[0] * one_over_r * shape_pressure[i];
 
                     // reformulated pressure term
-                    rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r;
+                    rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r* DimensionlessGroups::one_over_We;
                   }
                   
 #endif
@@ -3328,7 +3339,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp298/";
+  const std::string prefix = "tmp299/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3350,7 +3361,7 @@ StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number =10000000;
+    const unsigned int max_step_number =1000000000;
     const unsigned int output_interval = 10;
     const unsigned int checkpoint_output_interval = 10000;
 
