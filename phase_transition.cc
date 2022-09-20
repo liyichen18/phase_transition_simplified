@@ -918,13 +918,13 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      =2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   =8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
-  const double Pi_eta =1.6e+01;//  1.090104e+06; // sensible heat / visicosity
-  const double Ste    =4.000e-0;  //  1.252695e-02; // Stefan number
-  const double We     =1.250000e-01;  //  1.000000e+00; // Weber number
-  const double Re     =2.500000e-01;  //  7.503584e+01; // Reynolds number
-  const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
+  const double G      =1.; //2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   =1.; //8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
+  const double Pi_eta =1.; //1.6e+01;//  1.090104e+06; // sensible heat / visicosity
+  const double Ste    =1.; //4.000e-0;  //  1.252695e-02; // Stefan number
+  const double We     =1.; //1.250000e-01;  //  1.000000e+00; // Weber number
+  const double Re     =1.; //2.500000e-01;  //  7.503584e+01; // Reynolds number
+  const double Pe     =1.; //1.000000e+00;  //  1.010063e+03; // Peclet number
 
   const double one_over_Pe = 1.0/Pe;
   const double one_over_Pi_T = 1.0 / Pi_T;
@@ -3339,7 +3339,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp303/";
+  const std::string prefix = "tmp304/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
