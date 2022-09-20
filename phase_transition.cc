@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-#define USE_AXISYMMETRY // axisymmetric implementation
+//#define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
 namespace LA
@@ -1157,7 +1157,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
-  , initial_temperature(melting_t+20.)
+  , initial_temperature(melting_t)
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
@@ -3339,7 +3339,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp302/";
+  const std::string prefix = "tmp303/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
