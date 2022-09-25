@@ -26,7 +26,7 @@
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
-#define USE_AXISYMMETRY // axisymmetric implementation
+//#define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
 namespace LA
@@ -1141,8 +1141,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
-  , cs(4.899618e-01)
-  , cg(2.404398e-01)
+  , cs(1.) //cs(4.899618e-01)
+  , cg(1.) //cg(2.404398e-01)
   , eta_l(1.)
   , eta_s(100.)
   , eta_g(9.670022e-03)
@@ -2243,7 +2243,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const double log_t_ts_tm = std::log(temperature_ts/melting_t);
               Assert(numbers::is_finite(log_t_ts_tm), ExcMessage("log_t_ts_tm is not finite, which means temperature is negative"));
               // TM(1-T_ts/TM) + T_ts*log(T_ts/TM), used in  w3 and w5
-              const double w35_reuse_term1 = (melting_t * (1. - temperature_ts/melting_t) + temperature_ts * log_t_ts_tm) * DimensionlessGroups::Pi_T;
+              const double w35_reuse_term1 = melting_t * (1. - temperature_ts/melting_t) + temperature_ts * log_t_ts_tm;
               // w(phi_ch_ts) + 0.5 |grad_psi_ac_ts|^2
               const double w3_reuse_term2 = w_psi_ac_ts + 0.5 * (grad_psi_ac_ts * grad_psi_ac_ts);
 
@@ -2350,8 +2350,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                     ) * DimensionlessGroups::G
                                   + r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat/melting_t * shape_temperature_theta[j] * DimensionlessGroups::G
                                   + (shape_c_partial_phi_theta[j] * w35_reuse_term1
-                                     + c_partial_phi_ch_ts * shape_temperature_theta[j] * log_t_ts_tm * DimensionlessGroups::Pi_T
-                                     )
+                                     + c_partial_phi_ch_ts * shape_temperature_theta[j] * log_t_ts_tm
+                                     ) * DimensionlessGroups::Pi_T
                                   ) * shape_mu_phi_ch[i];
                           //  term iii
                           mat += (-(lambda_phi * w_prime_prime_phi_ch_ts
@@ -2383,8 +2383,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                                        + r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j])
                                       * latent_heat * (1. - temperature_ts/melting_t)) * DimensionlessGroups::G
                                    + r_prime_psi_ac_ts * r_phi_ch_ts * latent_heat/melting_t * shape_temperature_theta[j] * DimensionlessGroups::G
-                                   + (shape_c_partial_psi_theta[j] * w35_reuse_term1 /*multiplied by Pi_T already*/
-                                      + c_partial_psi_ac_ts * shape_temperature_theta[j] * log_t_ts_tm * DimensionlessGroups::Pi_T)) * shape_mu_psi_ac[i];
+                                   + (shape_c_partial_psi_theta[j] * w35_reuse_term1
+                                      + c_partial_psi_ac_ts * shape_temperature_theta[j] * log_t_ts_tm) * DimensionlessGroups::Pi_T) * shape_mu_psi_ac[i];
                           //  term iii
                           mat += (-(r_prime_phi_ch_ts * shape_phi_ch_theta[j] * lambda_psi * w_prime_psi_ac_ts
                                     + r_phi_ch_ts * lambda_psi * w_prime_prime_psi_ac_ts * shape_psi_ac_theta[j])
@@ -2478,7 +2478,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += - mu_phi_ch_star[q] * shape_mu_phi_ch[i];
                   // //  term ii
                   rhs += (r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
-                          - c_partial_phi_ch_ts * w35_reuse_term1) * shape_mu_phi_ch[i];
+                          - c_partial_phi_ch_ts * w35_reuse_term1 * DimensionlessGroups::Pi_T) * shape_mu_phi_ch[i];
                   //  term iii
                   rhs += (lambda_phi * w_prime_phi_ch_ts + lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
                           + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
@@ -2494,7 +2494,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   rhs += - mu_psi_ac_star[q] * shape_mu_psi_ac[i];
                   //  term ii
                   rhs += (r_prime_psi_ac_ts * r_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
-                          - c_partial_psi_ac_ts * w35_reuse_term1 /*multiplied by Pi_T already*/ ) * shape_mu_psi_ac[i];
+                          - c_partial_psi_ac_ts * w35_reuse_term1 * DimensionlessGroups::Pi_T) * shape_mu_psi_ac[i];         
                   //  term iii
                   rhs += (r_phi_ch_ts * lambda_psi * w_prime_psi_ac_ts + DimensionlessGroups::We * pressure_star[q] * inv_rho_partial_psi_ac_ts
                          ) * shape_mu_psi_ac[i];
@@ -2817,22 +2817,22 @@ void StokesProblem<dim>::newton_iteration()
       assemble_system(assemble_matrix);
       {
         TimerOutput::Scope t(computing_timer, "Direct Solve");
-        try
-          {
-            // if(k>3)
-            //   solver_control.set_tolerance(1.e-7);
-            Timer timer(mpi_communicator);
-            preconditioner.initialize(system_matrix);
-            solver.solve(system_matrix,
-                         newton_update,
-                         system_rhs,
-                         preconditioner);
+        // try
+        //   {
+        //     // if(k>3)
+        //     //   solver_control.set_tolerance(1.e-7);
+        //     Timer timer(mpi_communicator);
+        //     preconditioner.initialize(system_matrix);
+        //     solver.solve(system_matrix,
+        //                  newton_update,
+        //                  system_rhs,
+        //                  preconditioner);
 
-            pcout << " cg number of iterations: " << solver_control.last_step()
-                  << " cg solve time: "<< timer.wall_time()
-                  << std::endl;
-          }
-        catch (const std::exception &exc)
+        //     pcout << " cg number of iterations: " << solver_control.last_step()
+        //           << " cg solve time: "<< timer.wall_time()
+        //           << std::endl;
+        //   }
+        // catch (const std::exception &exc)
           {
             Timer timer(mpi_communicator);
             pcout << " cg failed, use direct solver: " << std::endl;
@@ -3339,7 +3339,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp305/";
+  const std::string prefix = "tmp306/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3362,10 +3362,10 @@ StokesProblem<dim>::run()
     double runtime           = 0.;
 
     const unsigned int max_step_number =1000000000;
-    const unsigned int output_interval = 10;
-    const unsigned int checkpoint_output_interval = 10000;
+    const unsigned int output_interval = 50;
+    const unsigned int checkpoint_output_interval = 50;
 
-    const bool start_from_checkpoint = false;
+    const bool start_from_checkpoint = true; //false;
 
     if(!start_from_checkpoint)
       {
@@ -3427,7 +3427,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 190;
+      step_number = 450; //phase_transition/checkpoints/tmp*
       load_checkpoint(step_number, runtime);
     }
 
@@ -3487,8 +3487,8 @@ StokesProblem<dim>::run()
             TimerOutput::Scope t(computing_timer, "output");
             output_results(step_number);
           }
-
-      if(step_number%50000 == 0)
+      if(step_number%10 == 0)
+      //if(step_number%50000 == 0)
         save_checkpoint(step_number, runtime);
 
       if(step_number % checkpoint_output_interval == 0)
