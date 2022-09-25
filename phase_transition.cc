@@ -3339,7 +3339,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp308/";
+  const std::string prefix = "tmp307/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3365,7 +3365,7 @@ StokesProblem<dim>::run()
     const unsigned int output_interval = 50;
     const unsigned int checkpoint_output_interval = 50;
 
-    const bool start_from_checkpoint = false;//true; //false;
+    const bool start_from_checkpoint = true; //false;
 
     if(!start_from_checkpoint)
       {
@@ -3384,7 +3384,7 @@ StokesProblem<dim>::run()
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
             {
               pcout<<" relaxation phase field "<<i<<std::endl;
-              present_timestep = 0.05;
+              present_timestep = 0.005;
               // if(i==0)
               //   theta = 1.;
               // else 
@@ -3427,7 +3427,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 400; //phase_transition/checkpoints/tmp*
+      step_number = 450; //phase_transition/checkpoints/tmp*
       load_checkpoint(step_number, runtime);
     }
 
