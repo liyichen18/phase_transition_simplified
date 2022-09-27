@@ -1127,9 +1127,9 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                     TimerOutput::wall_times)
   , component_ids(ComponentIndices<dim>())
   , extractors(ComponentIndices<dim>())
-  , eps(0.04)
+  , eps(0.02)
   , test_case(testcase)
-  , n_refinement(6)
+  , n_refinement(7)
   , density_l(1.)  
   , density_s(9.162000e-01 * density_l)
   , density_g(0.01 * density_l)
@@ -1137,7 +1137,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(5e-3)
+  , present_timestep(5e-2)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
@@ -3339,7 +3339,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp307/";
+  const std::string prefix = "tmp309/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3365,7 +3365,7 @@ StokesProblem<dim>::run()
     const unsigned int output_interval = 50;
     const unsigned int checkpoint_output_interval = 50;
 
-    const bool start_from_checkpoint = true; //false;
+    const bool start_from_checkpoint = false;//true; //false;
 
     if(!start_from_checkpoint)
       {
@@ -3427,7 +3427,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 450; //phase_transition/checkpoints/tmp*
+      step_number = 12450; //phase_transition/checkpoints/tmp*
       load_checkpoint(step_number, runtime);
     }
 
