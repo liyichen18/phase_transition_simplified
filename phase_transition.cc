@@ -2662,7 +2662,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                         }
                       
                       // right now only pinned, change later!
-                      const bool pin_contact_line = false; //true;
+                      const bool pin_contact_line = true; //false; //true;
 
                       const auto normal_q = fe_face_values.normal_vector(q);
 
@@ -3363,7 +3363,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp317/";
+  const std::string prefix = "tmp318-48/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3385,7 +3385,7 @@ StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number =10000;
+    const unsigned int max_step_number =100000;
     const unsigned int output_interval = 50;
     const unsigned int checkpoint_output_interval = 50;
 
