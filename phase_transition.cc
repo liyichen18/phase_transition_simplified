@@ -2819,7 +2819,7 @@ void StokesProblem<dim>::newton_iteration()
   SolverControl                  solver_control(1000, 1e-8);
 
    TrilinosWrappers::SolverDirect::AdditionalData data;
-   data.solver_type = "Amesos_Scalapack";
+   data.solver_type = "Amesos_Klu";
   // TrilinosWrappers::SolverDirect solver(solver_control, data);
 
   TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
@@ -3363,7 +3363,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp320/";
+  const std::string prefix = "tmp321/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
