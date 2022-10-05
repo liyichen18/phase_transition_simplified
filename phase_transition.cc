@@ -918,13 +918,13 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      =1.159722e+06;//2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double G      =1.159722e+06; //2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
   const double Pi_T   =1.452778e+04; //8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
-  const double Pi_eta =1.090104e+06; //1.6e+01;//  1.090104e+06; // sensible heat / visicosity
-  const double Ste    = 1.252695e-02; //4.000e-0;  //  1.252695e-02; // Stefan number
-  const double We     = 1.000000e+00;//1.250000e-01;  //  1.000000e+00; // Weber number
-  const double Re     =7.503584e+01;//2.500000e-01;  //  7.503584e+01; // Reynolds number
-  const double Pe     = 1.010063e+03; //1.000000e+00;  //  1.010063e+03; // Peclet number
+  const double Pi_eta =1.090104e+06; // 1.6e+01;//  1.090104e+06; // sensible heat / visicosity
+  const double Ste    =1.252695e-02; //4.000e-0;  //  1.252695e-02; // Stefan number
+  const double We     = 1.000000e+00; //1.250000e-01;  //  1.000000e+00; // Weber number
+  const double Re     =7.503584e+01; // 2.500000e-01;  //  7.503584e+01; // Reynolds number
+  const double Pe     =1.010063e+03; // 1.000000e+00;  //  1.010063e+03; // Peclet number
 
   // const double G      =1.159722e+06; // 1/G characterises Thompson-Gibbs effect
   // const double Pi_T   =1.452778e+04; // sensible heat / surface tension (AC/CH)
@@ -1160,7 +1160,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
  , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
   , mobility_phi(1e-4)
   , mobility_psi(1e-1)
-  , latent_heat(0.01)
+  , latent_heat(1)
   , melting_t(273.)
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
@@ -2427,7 +2427,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
 //                                                      + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
                                   +  rho_ts * c_ts * (shape_temperature[j]/present_timestep  
                                                       + vel_bar * grad_shape_temperature_theta[j])) * shape_temperature[i];
-                         //  term ii
+                          //  term ii
                           mat +=(-2. * ( mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_mu_phi_ch[j])
                                          + mobility_psi * mu_psi_ac_star[q] * shape_mu_psi_ac[j]) * DimensionlessGroups::one_over_Pi_T
                                  -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
@@ -2818,8 +2818,8 @@ void StokesProblem<dim>::newton_iteration()
 #else
   SolverControl                  solver_control(1000, 1e-8);
 
-  //TrilinosWrappers::SolverDirect::AdditionalData data;
-  //data.solver_type = "Amesos_Pardiso";
+  // TrilinosWrappers::SolverDirect::AdditionalData data;
+  // // data.solver_type = "Amesos_Lapack";
   // TrilinosWrappers::SolverDirect solver(solver_control, data);
 
   TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
@@ -3363,7 +3363,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp329/";
+  const std::string prefix = "tmp330/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
