@@ -935,13 +935,22 @@ namespace DimensionlessGroups
   // const double Pe     =1.010063e+03; // Peclet number  
 
 //%Some non-physical adjustments kl=kl*1000 ks=ks*1000 kg=kg*1000
+  // const double G      =1.159722e+03; // 1/G characterises Thompson-Gibbs effect
+  // const double Pi_T   =1.452778e+04; // sensible heat / surface tension (AC/CH)
+  // const double Pi_eta =1.090104e+06; // sensible heat / visicosity
+  // const double Ste    =1.252695e+01; // Stefan number
+  // const double We     =1.000000e+00; // Weber number
+  // const double Re     =7.503584e+01; // Reynolds number
+  // const double Pe     =1.010063e+00; // Peclet number  
+
+  //%Some non-physical adjustments kl=kl*100 ks=ks*1000 kg=kg*1000
   const double G      =1.159722e+03; // 1/G characterises Thompson-Gibbs effect
   const double Pi_T   =1.452778e+04; // sensible heat / surface tension (AC/CH)
   const double Pi_eta =1.090104e+06; // sensible heat / visicosity
   const double Ste    =1.252695e+01; // Stefan number
   const double We     =1.000000e+00; // Weber number
   const double Re     =7.503584e+01; // Reynolds number
-  const double Pe     =1.010063e+00; // Peclet number  
+  const double Pe     =1.010063e+01; // Peclet number  
 
   const double one_over_Pe = 1.0/Pe;
   const double one_over_Pi_T = 1.0 / Pi_T;
@@ -3372,7 +3381,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp336/";
+  const std::string prefix = "tmp337/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
