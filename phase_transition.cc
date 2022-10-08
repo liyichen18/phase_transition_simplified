@@ -21,11 +21,11 @@
 #include <deal.II/base/function.h>
 #include <deal.II/base/timer.h>
 
-
 #include <deal.II/lac/generic_linear_algebra.h>
 
 #define FORCE_USE_OF_TRILINOS
 #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
+// #define USE_UMFPACK
 #define USE_AXISYMMETRY // axisymmetric implementation
 // #define USE_NEW_R
 
@@ -965,8 +965,13 @@ public:
 
 private:
 #ifdef USE_DIRECT_SOLVER
-  using VectorType = LA::MPI::Vector;
-  using MatrixType = LA::MPI::SparseMatrix;
+  #ifdef USE_UMFPACK
+    using VectorType = Vector<double>;
+    using MatrixType = SparseMatrix<double>;    
+  #else
+    using VectorType = LA::MPI::Vector;
+    using MatrixType = LA::MPI::SparseMatrix;
+  #endif
 #else
     using VectorType = LA::MPI::BlockVector;
     using MatrixType = LA::MPI::BlockSparseMatrix;
@@ -1135,9 +1140,9 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                     TimerOutput::wall_times)
   , component_ids(ComponentIndices<dim>())
   , extractors(ComponentIndices<dim>())
-  , eps(0.02)
+  , eps(0.04)
   , test_case(testcase)
-  , n_refinement(7)
+  , n_refinement(6)
   , density_l(1.)  
   , density_s(9.162000e-01 * density_l)
   , density_g(0.01 * density_l)
@@ -1145,7 +1150,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(1e-2)
+  , present_timestep(5e-2)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
@@ -1165,7 +1170,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
-  , initial_temperature(melting_t+20.)
+  , initial_temperature(melting_t + 20.)
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
@@ -1332,7 +1337,11 @@ void StokesProblem<dim>::setup_initial_condition()
 {
   VectorType tmp_initial_sol;
 #ifdef USE_DIRECT_SOLVER
-  tmp_initial_sol.reinit(dof_handler.locally_owned_dofs(), mpi_communicator);
+  #ifdef USE_UMFPACK
+    tmp_initial_sol.reinit(dof_handler.locally_owned_dofs());
+  #else
+    tmp_initial_sol.reinit(dof_handler.locally_owned_dofs(), mpi_communicator);
+  #endif
 #else
   tmp_initial_sol.reinit(block_owned_partitioning, mpi_communicator);
 #endif
@@ -1876,8 +1885,12 @@ void StokesProblem<dim>::setup_system()
 //    const unsigned int n_blocks = sub_blocks[n_components - 1] + 1;
 
 //    pcout<<" n blocks: "<<n_blocks<<std::endl;
-
-//    DoFRenumbering::component_wise(dof_handler, sub_blocks);
+    {
+      TimerOutput::Scope t(computing_timer, "renumbering");
+      // DoFRenumbering::component_wise(dof_handler); // doesn't work
+      // DoFRenumbering::hierarchical(dof_handler);
+      DoFRenumbering::Cuthill_McKee(dof_handler);
+    }
 
     locally_relevant_dofs.clear();
     DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
@@ -2662,7 +2675,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                         }
                       
                       // right now only pinned, change later!
-                      const bool pin_contact_line = true; //false; //true;
+                      const bool pin_contact_line = false;
 
                       const auto normal_q = fe_face_values.normal_vector(q);
 
@@ -2692,12 +2705,12 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                             wall_A_star = numbers::SQRT2 * lambda_phi * std::cos(static_contact_angle) / eps
                                              * face_phi_ch_ts * (1. - face_phi_ch_ts);
                           // w3 term v
-                            cell_rhs(i) += ( 
-                                       - wall_A_star
-                                       + one_over_wall_relaxation_gamma * ((face_phi_ch_star[q] - face_phi_ch_n[q])/present_timestep
-                                         + wall_velocity * face_grad_phi_ch_ts) 
-                                      ) 
-                                    * face_shape_mu_phi_ch[i] * face_jxwq;
+                          cell_rhs(i) += ( 
+                                           - wall_A_star
+                                           + one_over_wall_relaxation_gamma * ((face_phi_ch_star[q] - face_phi_ch_n[q])/present_timestep
+                                             + wall_velocity * face_grad_phi_ch_ts)
+                                          ) 
+                                        * face_shape_mu_phi_ch[i] * face_jxwq;
                         }
                     }
                   }
@@ -2801,7 +2814,7 @@ void StokesProblem<dim>::newton_iteration()
   pcout<< "Newton iteration" << std::endl;
 
   // set to 1 for testing
-  const unsigned int max_iter = 15;
+  const unsigned int max_iter = 10;
   bool assemble_matrix = false;
   assemble_system(assemble_matrix);
   const double initial_residual = system_rhs.l2_norm();
@@ -2816,10 +2829,11 @@ void StokesProblem<dim>::newton_iteration()
   SolverControl cn;
   PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
 #else
-  SolverControl                  solver_control(1000, 1e-8);
+  SolverControl                  solver_control(2000, 1e-8);
 
-  // TrilinosWrappers::SolverDirect::AdditionalData data;
-  // // data.solver_type = "Amesos_Lapack";
+  TrilinosWrappers::SolverDirect::AdditionalData data;
+  data.solver_type = "Amesos_Umfpack";
+  
   // TrilinosWrappers::SolverDirect solver(solver_control, data);
 
   TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
@@ -2843,8 +2857,6 @@ void StokesProblem<dim>::newton_iteration()
         TimerOutput::Scope t(computing_timer, "Direct Solve");
         // try
         //   {
-        //     // if(k>3)
-        //     //   solver_control.set_tolerance(1.e-7);
         //     Timer timer(mpi_communicator);
         //     preconditioner.initialize(system_matrix);
         //     solver.solve(system_matrix,
@@ -2858,6 +2870,7 @@ void StokesProblem<dim>::newton_iteration()
         //   }
         // catch (const std::exception &exc)
           {
+            TimerOutput::Scope t(computing_timer, "Direct Solve trillinos");
             Timer timer(mpi_communicator);
             pcout << " cg failed, use direct solver: " << std::endl;
             TrilinosWrappers::SolverDirect::AdditionalData data;
@@ -2866,7 +2879,7 @@ void StokesProblem<dim>::newton_iteration()
             timer.stop();
             pcout<<" direct solver time: "<<timer.wall_time()<<std::endl;
           }
-      }
+        }
 
 
       pcout<<" mat norm: "<<system_matrix.frobenius_norm()
@@ -3363,7 +3376,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp344/";
+  const std::string prefix = "tmp345/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3385,7 +3398,7 @@ StokesProblem<dim>::run()
     unsigned int step_number = 0;
     double runtime           = 0.;
 
-    const unsigned int max_step_number =100000;
+    const unsigned int max_step_number =10000;
     const unsigned int output_interval = 50;
     const unsigned int checkpoint_output_interval = 50;
 
@@ -3451,7 +3464,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 4550;
+      step_number = 1000;
       load_checkpoint(step_number, runtime);
     }
 
