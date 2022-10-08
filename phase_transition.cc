@@ -800,10 +800,18 @@ namespace InitialConditions
               }
 
             const double d = R - r;
-            const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.2; // has to below melting temperature
-            const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
+           // const double phi = 0.5 * (1. + std::tanh(d/eps1));
+
+           // const double initial_solid_layer = 0.2; // has to below melting temperature
+           // const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1)); 
+
+            const double a = 1.;
+
+            const double d1 = x - a;
+            const double phi = 1 - 0.5 * (1. + std::tanh(d1/eps1));
+            const double initial_solid_layer = 1; // has to below melting temperature
+            const double psi =  0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1)); 
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
 
@@ -918,13 +926,13 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  // const double G      =1.159722e+06; //2.000000e+01; //  1/G characterises Thompson-Gibbs effect
-  // const double Pi_T   =1.452778e+04; // 8.000e+00; //  sensible heat / surface tension (AC/CH)
-  // const double Pi_eta =1.090104e+06; //1.6e+01;//   sensible heat / visicosity
-  // const double Ste    =1.252695e-02; // 4.000e-0;  //  Stefan number
-  // const double We     =1.000000e+00; // 1.250000e-01;  //  Weber number
-  // const double Re     =7.503584e+01; // 2.500000e-01;  //  Reynolds number
-  // const double Pe     = 1.010063e+03; // 1.000000e+00;  // Peclet number
+  const double G      =2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   =8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
+  const double Pi_eta =1.6e+01;//  1.090104e+06; // sensible heat / visicosity
+  const double Ste    =4.000e-0;  //  1.252695e-02; // Stefan number
+  const double We     =1.250000e-01;  //  1.000000e+00; // Weber number
+  const double Re     =2.500000e-01;  //  7.503584e+01; // Reynolds number
+  const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
 
   // const double G      =1.159722e+06; // 1/G characterises Thompson-Gibbs effect
   // const double Pi_T   =1.452778e+04; // sensible heat / surface tension (AC/CH)
@@ -933,24 +941,6 @@ namespace DimensionlessGroups
   // const double We     =1.000000e+00; // Weber number
   // const double Re     =7.503584e+01; // Reynolds number
   // const double Pe     =1.010063e+03; // Peclet number  
-
-//%Some non-physical adjustments kl=kl*1000 ks=ks*1000 kg=kg*1000
-  // const double G      =1.159722e+03; // 1/G characterises Thompson-Gibbs effect
-  // const double Pi_T   =1.452778e+04; // sensible heat / surface tension (AC/CH)
-  // const double Pi_eta =1.090104e+06; // sensible heat / visicosity
-  // const double Ste    =1.252695e+01; // Stefan number
-  // const double We     =1.000000e+00; // Weber number
-  // const double Re     =7.503584e+01; // Reynolds number
-  // const double Pe     =1.010063e+00; // Peclet number  
-
-  //%Some non-physical adjustments kl=kl*100 ks=ks*1000 kg=kg*1000
-  const double G      =1.159722e+03; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   =1.452778e+04; // sensible heat / surface tension (AC/CH)
-  const double Pi_eta =1.090104e+06; // sensible heat / visicosity
-  const double Ste    =1.252695e+01; // Stefan number
-  const double We     =1.000000e+00; // Weber number
-  const double Re     =7.503584e+01; // Reynolds number
-  const double Pe     =1.010063e+01; // Peclet number  
 
   const double one_over_Pe = 1.0/Pe;
   const double one_over_Pi_T = 1.0 / Pi_T;
@@ -3381,7 +3371,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp337/";
+  const std::string prefix = "tmp338/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
