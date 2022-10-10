@@ -813,8 +813,8 @@ namespace InitialConditions
             const double initial_solid_layer = 1; // has to below melting temperature
             const double psi =  0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1)); 
 
-            //const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
-            const double temperature_transition_function = 0;
+            const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
+
             const double initial_t =
               (1. - temperature_transition_function) * initial_temperature +
               temperature_transition_function * boundary_temperature;
@@ -1148,7 +1148,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , n_refinement(7)
   , density_l(1.)  
   , density_s(9.162000e-01 * density_l)
-  , density_g(0.01 * density_l)
+  , density_g(1 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
@@ -1163,7 +1163,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eta_s(100.)
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
-  , surface_tension_psi_ac(1.)
+  , surface_tension_psi_ac(0.1)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor.
  , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
   , mobility_phi(1e-4)
@@ -3371,7 +3371,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp348/";
+  const std::string prefix = "tmp349/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
