@@ -918,7 +918,7 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      =2.000000e+04; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double G      =2.000000e+06; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
   const double Pi_T   =8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
   const double Pi_eta =1.6e+01;//  1.090104e+06; // sensible heat / visicosity
   const double Ste    =4.000e-0;  //  1.252695e-02; // Stefan number
@@ -3376,7 +3376,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp357/";
+  const std::string prefix = "tmp359/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
