@@ -945,7 +945,7 @@ namespace DimensionlessGroups
   // const double Pe     = 3.194100e+03; // Peclet number
   
   // Yue's parameters
-  const double G      = 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
   const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
   const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
   const double Ste    = 1.252695e+01; // Stefan number
@@ -1202,7 +1202,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
-  , initial_temperature(melting_t)
+  , initial_temperature(melting_t+20)
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
@@ -3444,7 +3444,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp366/";
+  const std::string prefix = "tmp367/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
