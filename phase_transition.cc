@@ -945,7 +945,7 @@ namespace DimensionlessGroups
   // const double Pe     = 3.194100e+03; // Peclet number
   
   // Yue's parameters
-  const double G      = 1.159722e+05; // 1/G characterises Thompson-Gibbs effect
+  const double G      = 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
   const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
   const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
   const double Ste    = 1.252695e+01; // Stefan number
@@ -3444,7 +3444,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp365/";
+  const std::string prefix = "tmp366/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
