@@ -801,10 +801,18 @@ namespace InitialConditions
               }
 
             const double d = R - r;
-            const double phi = 0.5 * (1. + std::tanh(d/eps1));
+           // const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.2; // has to below melting temperature
-            const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
+           // const double initial_solid_layer = 0.2; // has to below melting temperature
+           // const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1)); 
+
+            const double a = 1.;
+
+            const double d1 = x - a;
+            const double phi = 1 - 0.5 * (1. + std::tanh(d1/eps1));
+            const double initial_solid_layer = 1; // has to below melting temperature
+            const double psi =  0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1)); 
+
 
             const double temperature_transition_function = 0; //transition_function(y, 0.01, initial_solid_layer+0.08);
 
@@ -951,7 +959,7 @@ namespace DimensionlessGroups
   const double Ste    = 1.252695e+01; // Stefan number
   const double We     = 1.000000e+00; // Weber number
   const double Re     = 7.503584e+01; // Reynolds number
-  const double Pe     = 1.010063e+03; // Peclet number
+  const double Pe     = 1.010063e+00; // Peclet number
 
   // exp parameters
   // const double G      = 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
@@ -1192,7 +1200,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eta_s(100.)
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
-  , surface_tension_psi_ac(0.5)
+  , surface_tension_psi_ac(0.1)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor.
  , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
   , mobility_phi(1e-4)
@@ -1740,6 +1748,26 @@ void StokesProblem<dim>::make_boundary_constraints()
                                                    constraints_newton_update,
                                                    vel_u_masked);          
         }
+                       {
+          //boundary id=1, 3
+          const types::boundary_id bc_id= 3;
+          // zero shear stress and zero heat flux (both embedded in the weak form)
+          // when solving CH + NS, we observe larege velocity on the boundary 1,
+          // so use slip condition. 
+          ComponentMask vel_v_masked(fe.n_components(), false);
+          vel_v_masked.set(extractors.velocities.first_vector_component + 1, true);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_boundary,
+                                                   vel_v_masked);
+
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                   bc_id,
+                                                   Functions::ZeroFunction<dim>(fe.n_components()),
+                                                   constraints_newton_update,
+                                                   vel_v_masked);          
+        }       
         break;
       }
     default:
@@ -3444,7 +3472,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp367/";
+  const std::string prefix = "tmp368/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
