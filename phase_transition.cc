@@ -2522,72 +2522,72 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                               // - lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_shape_inv_rho_theta[j]) * shape_mu_psi_ac[i];
 
                           // w6
-                          mat += (shape_rho_theta[j] * D_vel_Dt_ts
-                                  + rho_ts * (shape_vel[j]/present_timestep + grad_shape_vel[j] * vel_bar * theta
-                                              + 0.5 * div_vel_bar * shape_vel_theta[j])) * shape_vel[i]
-                              -  shape_pressure[j] * shape_div_vel[i]
-                              +  scalar_product(shape_eta_theta[j] * e_ts + eta_ts * shape_e_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
-                              -  scalar_product(shape_rho_theta[j] * gamma_ts + rho_ts * shape_gamma_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
+//                           mat += (shape_rho_theta[j] * D_vel_Dt_ts
+//                                   + rho_ts * (shape_vel[j]/present_timestep + grad_shape_vel[j] * vel_bar * theta
+//                                               + 0.5 * div_vel_bar * shape_vel_theta[j])) * shape_vel[i]
+//                               -  shape_pressure[j] * shape_div_vel[i]
+//                               +  scalar_product(shape_eta_theta[j] * e_ts + eta_ts * shape_e_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
+//                               -  scalar_product(shape_rho_theta[j] * gamma_ts + rho_ts * shape_gamma_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
 
-                          // w7
-                          mat += (- theta * shape_div_vel[j]
-                                  + (shape_inv_rho_partial_phi_theta[j] * h_ts + inv_rho_partial_phi_ch_ts * shape_h_ts[j])
-                                  - (shape_inv_rho_partial_psi_theta[j] * mobility_psi * mu_psi_ac_star[q]
-                                     + inv_rho_partial_psi_ac_ts * mobility_psi * shape_mu_psi_ac[j])) * shape_pressure[i];
+//                           // w7
+//                           mat += (- theta * shape_div_vel[j]
+//                                   + (shape_inv_rho_partial_phi_theta[j] * h_ts + inv_rho_partial_phi_ch_ts * shape_h_ts[j])
+//                                   - (shape_inv_rho_partial_psi_theta[j] * mobility_psi * mu_psi_ac_star[q]
+//                                      + inv_rho_partial_psi_ac_ts * mobility_psi * shape_mu_psi_ac[j])) * shape_pressure[i];
 
-                          // w8
-                          //  term i
-                          mat += ((shape_rho_theta[j] * c_ts + rho_ts * shape_c_theta[j]) * D_temperature_Dt_ts
-//                                  +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
-//                                                      + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
-                                  +  rho_ts * c_ts * (shape_temperature[j]/present_timestep  
-                                                      + vel_bar * grad_shape_temperature_theta[j])) * shape_temperature[i];
-                          //  term ii
-                          mat +=(-2. * ( mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_mu_phi_ch[j])
-                                         + mobility_psi * mu_psi_ac_star[q] * shape_mu_psi_ac[j]) * DimensionlessGroups::one_over_Pi_T
-                                 -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
-                                 -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
-                                 -  eta_ts * scalar_product(e_ts, grad_shape_vel[j]) * theta * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
-                          //  term iii
-                          mat += ( k_ts * grad_shape_temperature_theta[j]
-                                   + (k_partial_phi_ch_ts * shape_phi_ch_theta[j] 
-                                    + k_partial_psi_ac_ts * shape_psi_ac_theta[j]) * grad_temperature_ts )
-                                  * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
-                          //  term iv
-                          mat += latent_heat/melting_t * (r_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_prime_phi_ch_ts * h_ts
-                                                          + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j] * h_ts
-                                                          + r_psi_ac_ts * r_prime_phi_ch_ts * shape_h_ts[j]
-                                                          - r_prime_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q]
-                                                          - r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * mobility_psi * mu_psi_ac_star[q]
-                                                          - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * shape_mu_psi_ac[j])
-                              * temperature_ts * shape_temperature[i] * DimensionlessGroups::one_over_Ste
-                              + latent_heat/melting_t * (r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
-                                                         - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
-                              * shape_temperature_theta[j] * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
-                          //  term v
-                          mat += (shape_c_partial_phi_theta[j] * h_ts + c_partial_phi_ch_ts * shape_h_ts[j]
-                                  - shape_c_partial_psi_theta[j] * mobility_psi * mu_psi_ac_star[q]
-                                  - c_partial_psi_ac_ts * mobility_psi * shape_mu_psi_ac[j])
-                              *  temperature_ts * log_t_ts_tm * shape_temperature[i]
-                              +  (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
-                              *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
-#ifdef USE_AXISYMMETRY        
-                          // axi-2
-                          mat += + 0.5 * vel_bar[0] * one_over_r * ((shape_rho_theta[j] * vel_ts 
-                                                                      + rho_ts * shape_vel_theta[j]) * shape_vel[i])
-                                 - (shape_pressure[j] * shape_vel[i][0] * one_over_r)
-                                 + ((shape_eta_theta[j]*(4./3.*vel_ts[0]*one_over_r-2./3.*div_vel_ts)
-                                               +eta_ts*(4./3.*shape_vel_theta[j][0]*one_over_r-2./3.*theta*shape_div_vel[j]))
-                                               * shape_vel[i][0] * one_over_r
-                                   -2./3. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
-                                               * shape_div_vel[i])*DimensionlessGroups::one_over_Re;
+//                           // w8
+//                           //  term i
+//                           mat += ((shape_rho_theta[j] * c_ts + rho_ts * shape_c_theta[j]) * D_temperature_Dt_ts
+// //                                  +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
+// //                                                      + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
+//                                   +  rho_ts * c_ts * (shape_temperature[j]/present_timestep  
+//                                                       + vel_bar * grad_shape_temperature_theta[j])) * shape_temperature[i];
+//                           //  term ii
+//                           mat +=(-2. * ( mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_mu_phi_ch[j])
+//                                          + mobility_psi * mu_psi_ac_star[q] * shape_mu_psi_ac[j]) * DimensionlessGroups::one_over_Pi_T
+//                                  -  shape_eta_theta[j] * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
+//                                  -  eta_ts * scalar_product(shape_e_theta[j], grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta
+//                                  -  eta_ts * scalar_product(e_ts, grad_shape_vel[j]) * theta * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
+//                           //  term iii
+//                           mat += ( k_ts * grad_shape_temperature_theta[j]
+//                                    + (k_partial_phi_ch_ts * shape_phi_ch_theta[j] 
+//                                     + k_partial_psi_ac_ts * shape_psi_ac_theta[j]) * grad_temperature_ts )
+//                                   * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
+//                           //  term iv
+//                           mat += latent_heat/melting_t * (r_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_prime_phi_ch_ts * h_ts
+//                                                           + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j] * h_ts
+//                                                           + r_psi_ac_ts * r_prime_phi_ch_ts * shape_h_ts[j]
+//                                                           - r_prime_prime_psi_ac_ts * shape_psi_ac_theta[j] * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q]
+//                                                           - r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * mobility_psi * mu_psi_ac_star[q]
+//                                                           - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * shape_mu_psi_ac[j])
+//                               * temperature_ts * shape_temperature[i] * DimensionlessGroups::one_over_Ste
+//                               + latent_heat/melting_t * (r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
+//                                                          - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q])
+//                               * shape_temperature_theta[j] * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
+//                           //  term v
+//                           mat += (shape_c_partial_phi_theta[j] * h_ts + c_partial_phi_ch_ts * shape_h_ts[j]
+//                                   - shape_c_partial_psi_theta[j] * mobility_psi * mu_psi_ac_star[q]
+//                                   - c_partial_psi_ac_ts * mobility_psi * shape_mu_psi_ac[j])
+//                               *  temperature_ts * log_t_ts_tm * shape_temperature[i]
+//                               +  (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
+//                               *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
+// #ifdef USE_AXISYMMETRY        
+//                           // axi-2
+//                           mat += + 0.5 * vel_bar[0] * one_over_r * ((shape_rho_theta[j] * vel_ts 
+//                                                                       + rho_ts * shape_vel_theta[j]) * shape_vel[i])
+//                                  - (shape_pressure[j] * shape_vel[i][0] * one_over_r)
+//                                  + ((shape_eta_theta[j]*(4./3.*vel_ts[0]*one_over_r-2./3.*div_vel_ts)
+//                                                +eta_ts*(4./3.*shape_vel_theta[j][0]*one_over_r-2./3.*theta*shape_div_vel[j]))
+//                                                * shape_vel[i][0] * one_over_r
+//                                    -2./3. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
+//                                                * shape_div_vel[i])*DimensionlessGroups::one_over_Re;
 
-                          // axi-4
-                          mat += - shape_vel_theta[j][0] * one_over_r * shape_pressure[i];
-                          // pressure reformulated term
-                          mat += (shape_rho_theta[j] * pressure_reformulated_term + rho_ts * shape_pressure_reformulated_term[j]) * shape_vel[i][0] 
-                               * one_over_r*DimensionlessGroups::one_over_We;
-#endif
+//                           // axi-4
+//                           mat += - shape_vel_theta[j][0] * one_over_r * shape_pressure[i];
+//                           // pressure reformulated term
+//                           mat += (shape_rho_theta[j] * pressure_reformulated_term + rho_ts * shape_pressure_reformulated_term[j]) * shape_vel[i][0] 
+//                                * one_over_r*DimensionlessGroups::one_over_We;
+// #endif
                           cell_matrix(i,j) += mat * jxwq;
 
                         }
@@ -2627,31 +2627,31 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   if(!relax_phase_field)
                   {
                     // w6
-                    rhs += - rho_ts * D_vel_Dt_ts * shape_vel[i]
-                        +    pressure_star[q] * shape_div_vel[i]
-                        -    eta_ts * scalar_product(e_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
-                        +    rho_ts * scalar_product(gamma_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
+                    // rhs += - rho_ts * D_vel_Dt_ts * shape_vel[i]
+                    //     +    pressure_star[q] * shape_div_vel[i]
+                    //     -    eta_ts * scalar_product(e_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
+                    //     +    rho_ts * scalar_product(gamma_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
 
-                    // w7
-                    rhs += (div_vel_ts - inv_rho_partial_phi_ch_ts * h_ts
-                            +  inv_rho_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q]) * shape_pressure[i];
+                    // // w7
+                    // rhs += (div_vel_ts - inv_rho_partial_phi_ch_ts * h_ts
+                    //         +  inv_rho_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q]) * shape_pressure[i];
 
-                    // w8
-                    //  term i
-                    rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
-                    //  term ii
-                    rhs += (mobility_phi * (grad_mu_phi_ch_star[q] * grad_mu_phi_ch_star[q]) * DimensionlessGroups::one_over_Pi_T
-                            + mobility_psi * (mu_psi_ac_star[q] * mu_psi_ac_star[q]) * DimensionlessGroups::one_over_Pi_T
-                            + eta_ts * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
-                    //  term iii
-                    rhs += - k_ts * grad_temperature_ts * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
-                    //  term iv
-                    rhs += - (latent_heat * (r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
-                              - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q]))
-                        * temperature_ts/melting_t * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
-                    // term v
-                    rhs += - (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
-                        * temperature_ts * log_t_ts_tm * shape_temperature[i];
+                    // // w8
+                    // //  term i
+                    // rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
+                    // //  term ii
+                    // rhs += (mobility_phi * (grad_mu_phi_ch_star[q] * grad_mu_phi_ch_star[q]) * DimensionlessGroups::one_over_Pi_T
+                    //         + mobility_psi * (mu_psi_ac_star[q] * mu_psi_ac_star[q]) * DimensionlessGroups::one_over_Pi_T
+                    //         + eta_ts * scalar_product(e_ts, grad_vel_ts) * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
+                    // //  term iii
+                    // rhs += - k_ts * grad_temperature_ts * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
+                    // //  term iv
+                    // rhs += - (latent_heat * (r_psi_ac_ts * r_prime_phi_ch_ts * h_ts
+                    //           - r_prime_psi_ac_ts * r_phi_ch_ts * mobility_psi * mu_psi_ac_star[q]))
+                    //     * temperature_ts/melting_t * shape_temperature[i] * DimensionlessGroups::one_over_Ste;
+                    // // term v
+                    // rhs += - (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
+                    //     * temperature_ts * log_t_ts_tm * shape_temperature[i];
                   }
 #ifdef USE_AXISYMMETRY
                   if(!relax_phase_field)
@@ -3480,7 +3480,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp384/";
+  const std::string prefix = "tmp385/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
