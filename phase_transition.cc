@@ -2477,19 +2477,19 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                               // - lambda_psi * rho_ts * r_phi_ch_ts * (grad_shape_psi_ac_theta[j] * grad_inv_rho_ts) * shape_mu_psi_ac[i]
                               // - lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_shape_inv_rho_theta[j]) * shape_mu_psi_ac[i];
 
-                          // w6
-                          mat += (shape_rho_theta[j] * D_vel_Dt_ts
-                                  + rho_ts * (shape_vel[j]/present_timestep + grad_shape_vel[j] * vel_bar * theta
-                                              + 0.5 * div_vel_bar * shape_vel_theta[j])) * shape_vel[i]
-                              -  shape_pressure[j] * shape_div_vel[i]
-                              +  scalar_product(shape_eta_theta[j] * e_ts + eta_ts * shape_e_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
-                              -  scalar_product(shape_rho_theta[j] * gamma_ts + rho_ts * shape_gamma_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
+                          // // w6
+                          // mat += (shape_rho_theta[j] * D_vel_Dt_ts
+                          //         + rho_ts * (shape_vel[j]/present_timestep + grad_shape_vel[j] * vel_bar * theta
+                          //                     + 0.5 * div_vel_bar * shape_vel_theta[j])) * shape_vel[i]
+                          //     -  shape_pressure[j] * shape_div_vel[i]
+                          //     +  scalar_product(shape_eta_theta[j] * e_ts + eta_ts * shape_e_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
+                          //     -  scalar_product(shape_rho_theta[j] * gamma_ts + rho_ts * shape_gamma_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
 
-                          // w7
-                          mat += (- theta * shape_div_vel[j]
-                                  + (shape_inv_rho_partial_phi_theta[j] * h_ts + inv_rho_partial_phi_ch_ts * shape_h_ts[j])
-                                  - (shape_inv_rho_partial_psi_theta[j] * mobility_psi * mu_psi_ac_star[q]
-                                     + inv_rho_partial_psi_ac_ts * mobility_psi * shape_mu_psi_ac[j])) * shape_pressure[i];
+                          // // w7
+                          // mat += (- theta * shape_div_vel[j]
+                          //         + (shape_inv_rho_partial_phi_theta[j] * h_ts + inv_rho_partial_phi_ch_ts * shape_h_ts[j])
+                          //         - (shape_inv_rho_partial_psi_theta[j] * mobility_psi * mu_psi_ac_star[q]
+                          //            + inv_rho_partial_psi_ac_ts * mobility_psi * shape_mu_psi_ac[j])) * shape_pressure[i];
 
                           // w8
                           //  term i
@@ -3435,7 +3435,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp386/";
+  const std::string prefix = "tmp387/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
