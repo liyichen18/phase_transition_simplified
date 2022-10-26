@@ -919,7 +919,7 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      =10.; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double G      =5; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
   const double Pi_T   =1.; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
   const double Pi_eta =1.;//  1.090104e+06; // sensible heat / visicosity
   const double Ste    =1.;  //  1.252695e-02; // Stefan number
@@ -1196,7 +1196,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
-  , initial_temperature(melting_t*1.4)
+  , initial_temperature(melting_t*1.1)
   , boundary_temperature(initial_temperature)//(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
@@ -3435,7 +3435,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp407/";
+  const std::string prefix = "tmp408/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3457,7 +3457,7 @@ StokesProblem<dim>::run()
     step_number = 0;
     runtime           = 0.;
 
-    const unsigned int max_step_number =100000;
+    const unsigned int max_step_number =10000;
     const unsigned int output_interval = 50;
     const unsigned int checkpoint_output_interval = 100;
     const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
