@@ -919,7 +919,7 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      =160; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  const double G      =80; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
   const double Pi_T   =1.; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
   const double Pi_eta =1.;//  1.090104e+06; // sensible heat / visicosity
   const double Ste    =1.;  //  1.252695e-02; // Stefan number
@@ -1176,7 +1176,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(1.e-5)
+  , present_timestep(1.e-3)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
@@ -3435,7 +3435,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp416/";
+  const std::string prefix = "tmp417/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
