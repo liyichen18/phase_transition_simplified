@@ -786,7 +786,7 @@ namespace InitialConditions
               {
               case 2: //2D case
                 {
-                  const double height = 0.7155039792 * R;
+                  const double height = 0.72455039792 * R;
                   // const double height = R;
                   const double center_y = R - height;
                   center = Point<dim>(0, -center_y);
@@ -1186,11 +1186,11 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eta_s(100.)
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
-  , surface_tension_psi_ac(0.1)
+  , surface_tension_psi_ac(0.5)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor.
   , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
-  , mobility_phi(1e-4)
-  , mobility_psi(0.1)
+  , mobility_phi(1e-3)
+  , mobility_psi(1.)
   , latent_heat(1)
   , melting_t(273.)
   , k_l(1.) //  thermal_conductivity(1.)
@@ -3437,7 +3437,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp444/";
+  const std::string prefix = "tmp445/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3459,8 +3459,8 @@ StokesProblem<dim>::run()
     step_number = 0;
     runtime           = 0.;
 
-    const unsigned int max_step_number =8000;
-    const unsigned int output_interval = 50;
+    const unsigned int max_step_number =800;
+    const unsigned int output_interval = 5;
     const unsigned int checkpoint_output_interval = 100;
     const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
 
@@ -3478,7 +3478,7 @@ StokesProblem<dim>::run()
 
         setup_initial_condition();
         relax_phase_field = true;
-        const unsigned int n_relaxation_steps = 3;
+        const unsigned int n_relaxation_steps = 0;
         // output_results(0);
         if(relax_phase_field)
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
@@ -3530,7 +3530,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 1600;
+      step_number = 700;
       load_checkpoint(step_number, runtime);
     }
 
