@@ -1175,7 +1175,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , ambient_pressure(0.)
   , mapping(1)
   //, static_contact_angle(numbers::PI/2.) // 73.47 degrees
-  , static_contact_angle(numbers::73.47) 
+  , static_contact_angle(numbers::PI/2.) 
   , one_over_wall_relaxation_gamma(0.001)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
@@ -3438,7 +3438,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp517/";
+  const std::string prefix = "tmp518/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
