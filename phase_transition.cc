@@ -84,6 +84,7 @@ using namespace dealii::LinearAlgebraTrilinos;
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <functional>
 
 namespace Step55
 {
@@ -785,8 +786,8 @@ namespace InitialConditions
               {
               case 2: //2D case
                 {
-                  // const double width = 0.9631571754 * R;
-                  const double height = R;
+                  const double height = 0.72455039792 * R;
+                  // const double height = R;
                   const double center_y = R - height;
                   center = Point<dim>(0, -center_y);
                   r = p.distance(center);
@@ -802,14 +803,14 @@ namespace InitialConditions
             const double d = R - r;
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.2; // has to below melting temperature
+            const double initial_solid_layer = 0.08; // has to below melting temperature
             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
-            const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
+            const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
 
             const double initial_t =
               (1. - temperature_transition_function) * initial_temperature +
-              temperature_transition_function * boundary_temperature;
+              temperature_transition_function * melting_temperature;
 
             for(unsigned int comp = 0; comp < values.size(); ++comp)
               {
@@ -918,21 +919,42 @@ void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
 
 namespace DimensionlessGroups
 {
-  const double G      =2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   =8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
-  const double Pi_eta =1.6e+01;//  1.090104e+06; // sensible heat / visicosity
-  const double Ste    =4.000e-0;  //  1.252695e-02; // Stefan number
-  const double We     =1.250000e-01;  //  1.000000e+00; // Weber number
-  const double Re     =2.500000e-01;  //  7.503584e+01; // Reynolds number
-  const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
+  // const double G      =2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  // const double Pi_T   =8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
+  // const double Pi_eta =1.6e+01;//  1.090104e+06; // sensible heat / visicosity
+  // const double Ste    =4.000e-0;  //  1.252695e-02; // Stefan number
+  // const double We     =1.250000e-01;  //  1.000000e+00; // Weber number
+  // const double Re     =2.500000e-01;  //  7.503584e+01; // Reynolds number
+  // const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
 
-  // const double G      =1.159722e+06; // 1/G characterises Thompson-Gibbs effect
-  // const double Pi_T   =1.452778e+04; // sensible heat / surface tension (AC/CH)
-  // const double Pi_eta =1.090104e+06; // sensible heat / visicosity
-  // const double Ste    =1.252695e-02; // Stefan number
-  // const double We     =1.000000e+00; // Weber number
-  // const double Re     =7.503584e+01; // Reynolds number
-  // const double Pe     =1.010063e+03; // Peclet number  
+  
+  const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
+  const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
+  const double Ste    = 1.252695e+01; // Stefan number
+  const double We     = 1.000000e+00; // Weber number
+  const double Re     = 7.503584e+01; // Reynolds number
+  const double Pe     = 1.010063e+0; // Peclet number
+  const double G_ch      = 0; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T_ch   = 0; // sensible heat / surface tension (AC/CH)
+
+  // Yue's parameters
+  // const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
+  // const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
+  // const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
+  // const double Ste    = 1.252695e+01; // Stefan number
+  // const double We     = 1.000000e+00; // Weber number
+  // const double Re     = 7.503584e+01; // Reynolds number
+  // const double Pe     = 1.010063e+03; // Peclet number
+
+  // exp parameters
+  // const double G      = 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+  // const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
+  // const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
+  // const double Ste    = 1.252695e-02; // Stefan number
+  // const double We     = 1.000000e+00; // Weber number
+  // const double Re     = 7.503584e+01; // Reynolds number
+  // const double Pe     = 1.010063e+03; // Peclet number
 
   const double one_over_Pe = 1.0/Pe;
   const double one_over_Pi_T = 1.0 / Pi_T;
@@ -976,7 +998,8 @@ private:
     using VectorType = LA::MPI::BlockVector;
     using MatrixType = LA::MPI::BlockSparseMatrix;
 #endif
-    void set_boundary_ids();
+    void create_coarse_grid(parallel::distributed::Triangulation<dim> &coarse_grid) const ;
+    void set_boundary_ids(parallel::distributed::Triangulation<dim> &coarse_grid) const ;
     void make_grid();
     void setup_system();
     void setup_block_system();
@@ -1082,6 +1105,8 @@ private:
 
     bool relax_phase_field = false;
 
+    unsigned int step_number = 0;
+    double       runtime     = 0.;
 };
 
 
@@ -1131,7 +1156,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , triangulation(mpi_communicator,
                   typename Triangulation<dim>::MeshSmoothing(
                     Triangulation<dim>::smoothing_on_refinement |
-                    Triangulation<dim>::smoothing_on_coarsening))
+                    Triangulation<dim>::smoothing_on_coarsening),
+                    parallel::distributed::Triangulation<dim>::mesh_reconstruction_after_repartitioning)
   , dof_handler(triangulation)
   , pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0))
   , computing_timer(mpi_communicator,
@@ -1140,43 +1166,42 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                     TimerOutput::wall_times)
   , component_ids(ComponentIndices<dim>())
   , extractors(ComponentIndices<dim>())
-  , eps(0.04)
+  , eps(0.02)
   , test_case(testcase)
-  , n_refinement(6)
+  , n_refinement(7)
   , density_l(1.)  
-  , density_s(1. * density_l)
+  , density_s(9.162000e-01 * density_l)
   , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(5e-2)
+  , present_timestep(1.5e-3)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
-  , cs(4.899618e-01)
-  , cg(2.404398e-01)
+  , cs(cl)//(4.899618e-01)
+  , cg(cl)//(2.404398e-01)
   , eta_l(1.)
   , eta_s(100.)
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
   , surface_tension_psi_ac(0.5)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor.
- , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
-  , mobility_phi(1e-4)
-  , mobility_psi(1e-1)
+  , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
+  , mobility_phi(1e-3)
+  , mobility_psi(1.)
   , latent_heat(1)
   , melting_t(273.)
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
-  , initial_temperature(melting_t + 20.)
+  , initial_temperature(melting_t+20.)
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
-  //, static_contact_angle(numbers::PI/2.) // 73.47 degrees
-  , static_contact_angle(numbers::PI * 73.47127431/180.) 
-  , one_over_wall_relaxation_gamma(0.001)
+  , static_contact_angle(numbers::PI * 73.47127431/180.) // 73.47 degrees
+  , one_over_wall_relaxation_gamma(100)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
   , min_mesh_size(0.01)
@@ -1187,7 +1212,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
 }
 
 template <int dim>
-void StokesProblem<dim>::make_grid()
+void StokesProblem<dim>:: create_coarse_grid(parallel::distributed::Triangulation<dim> &coarse_grid) const 
 {
   switch  (test_case)
     {
@@ -1199,9 +1224,7 @@ void StokesProblem<dim>::make_grid()
 //            the ones for z are 4 and 5.
         const bool   colorize = true;
         const double width = 2.;
-        GridGenerator::hyper_cube(triangulation, 0., width, colorize);
-        triangulation.refine_global(n_refinement);
-
+        GridGenerator::hyper_cube(coarse_grid, 0., width, colorize);
         break;
       }
     case TestCase::test2: {
@@ -1214,11 +1237,7 @@ void StokesProblem<dim>::make_grid()
 
         const bool   colorize = true;
         GridGenerator::subdivided_hyper_rectangle(
-          triangulation, repetitions, p0, p1, colorize);
-        if(use_adaptive_refinement)
-          triangulation.refine_global(3);
-        else
-          triangulation.refine_global(n_refinement);
+          coarse_grid, repetitions, p0, p1, colorize);
         break;
       }
     case TestCase::test3: {
@@ -1229,9 +1248,49 @@ void StokesProblem<dim>::make_grid()
 //            the ones for z are 4 and 5.
         const bool   colorize = true;
         const double width = 2.;
-        GridGenerator::hyper_cube(triangulation, 0., width, colorize);
-        // note that some boundary ids are not saved in the checkpoints.
-        set_boundary_ids();
+        GridGenerator::hyper_cube(coarse_grid, 0., width, colorize);
+        // // note that some boundary ids are not saved in the checkpoints.
+        // set_boundary_ids();
+        break;
+      }      
+    default:
+      Assert(false, ExcNotImplemented("Setting up iniital grid: Please choose the right test case"));
+    }  
+    coarse_grid.signals.post_refinement.connect(
+    [this, &coarse_grid]()
+    {
+      this->set_boundary_ids(coarse_grid);
+    });
+}
+
+template <int dim>
+void StokesProblem<dim>::make_grid()
+{
+  create_coarse_grid(triangulation);
+
+  switch  (test_case)
+    {
+    case TestCase::test1: {
+//        If the colorize flag is true,
+//        then the boundary_ids of the boundary faces are assigned,
+//            such that the lower one in x-direction is 0, the upper one is 1.
+//            The indicators for the surfaces in y-direction are 2 and 3,
+//            the ones for z are 4 and 5.
+        triangulation.refine_global(n_refinement);
+
+        break;
+      }
+    case TestCase::test2: {
+        AssertDimension(dim, 2);
+
+        if(use_adaptive_refinement)
+          triangulation.refine_global(3);
+        else
+          triangulation.refine_global(n_refinement);
+        break;
+      }
+    case TestCase::test3: {
+
         if(use_adaptive_refinement)
           triangulation.refine_global(3);
         else
@@ -1309,7 +1368,7 @@ void StokesProblem<dim>::make_grid()
 
 template <int dim>
 void StokesProblem<dim>::
-set_boundary_ids()
+set_boundary_ids(parallel::distributed::Triangulation<dim> &coarse_grid) const
 {
 switch  (test_case)
     {
@@ -1320,7 +1379,7 @@ switch  (test_case)
         break;
       }
     case TestCase::test3: {
-        for(auto &cell : triangulation.active_cell_iterators())
+        for(auto &cell : coarse_grid.active_cell_iterators())
           for(const auto &f : cell->face_indices())
             if(cell->face(f)->at_boundary())
               if(cell->face(f)->boundary_id() == 2)
@@ -1889,7 +1948,7 @@ void StokesProblem<dim>::setup_system()
     {
       TimerOutput::Scope t(computing_timer, "renumbering");
       // DoFRenumbering::component_wise(dof_handler); // doesn't work
-      // DoFRenumbering::hierarchical(dof_handler);
+      DoFRenumbering::hierarchical(dof_handler);
       DoFRenumbering::Cuthill_McKee(dof_handler);
     }
 
@@ -2231,7 +2290,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
               const double r_prime_prime_phi_ch_ts = InlineFunctions::r_prime_prime(phi_ch_ts);
               const double r_prime_prime_psi_ac_ts = InlineFunctions::r_prime_prime(psi_ac_ts);
               const double artificial_diffusion_coefficient
-              = InlineFunctions::r(0.1) - InlineFunctions::r(std::min(phi_ch_n[q], 0.1)); //0.1
+              = InlineFunctions::r(0.2) - InlineFunctions::r(std::min(phi_ch_n[q], 0.2)); //0.1
 #else
               const double r_alpha = 0.05;
               const double r_phi_ch_ts = InlineFunctions::new_r(phi_ch_ts, r_alpha);
@@ -2369,11 +2428,11 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                           mat += (-((r_prime_psi_ac_ts * r_prime_phi_ch_ts * shape_psi_ac_theta[j]
                                      + r_psi_ac_ts * r_prime_prime_phi_ch_ts * shape_phi_ch_theta[j]
                                      ) * latent_heat * (1. - temperature_ts/melting_t)
-                                    ) * DimensionlessGroups::G
-                                  + r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat/melting_t * shape_temperature_theta[j] * DimensionlessGroups::G
+                                    ) * DimensionlessGroups::G_ch
+                                  + r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat/melting_t * shape_temperature_theta[j] * DimensionlessGroups::G_ch
                                   + (shape_c_partial_phi_theta[j] * w35_reuse_term1
                                      + c_partial_phi_ch_ts * shape_temperature_theta[j] * log_t_ts_tm
-                                     ) * DimensionlessGroups::Pi_T
+                                     ) * DimensionlessGroups::Pi_T_ch
                                   ) * shape_mu_phi_ch[i];
                           //  term iii
                           mat += (-(lambda_phi * w_prime_prime_phi_ch_ts
@@ -2499,8 +2558,8 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                   //  term i
                   rhs += - mu_phi_ch_star[q] * shape_mu_phi_ch[i];
                   // //  term ii
-                  rhs += (r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G
-                          - c_partial_phi_ch_ts * w35_reuse_term1 * DimensionlessGroups::Pi_T) * shape_mu_phi_ch[i];
+                  rhs += (r_psi_ac_ts * r_prime_phi_ch_ts * latent_heat * (1. - temperature_ts/melting_t) * DimensionlessGroups::G_ch
+                          - c_partial_phi_ch_ts * w35_reuse_term1 * DimensionlessGroups::Pi_T_ch) * shape_mu_phi_ch[i];
                   //  term iii
                   rhs += (lambda_phi * w_prime_phi_ch_ts + lambda_psi * r_prime_phi_ch_ts * w3_reuse_term2
                           + pressure_star[q] * inv_rho_partial_phi_ch_ts * DimensionlessGroups::We) * shape_mu_phi_ch[i];
@@ -2582,8 +2641,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
             for (const auto face_no : cell->face_indices())
               {
                 if (cell->face(face_no)->at_boundary() &&
-                    cell->face(face_no)->boundary_id() == wall_boundary_id &&
-                    (!relax_phase_field))
+                    cell->face(face_no)->boundary_id() == wall_boundary_id)
                 // if(false)
                   {
                     fe_face_values.reinit(cell, face_no);
@@ -2676,7 +2734,7 @@ void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
                         }
                       
                       // right now only pinned, change later!
-                      const bool pin_contact_line = false;
+                      const bool pin_contact_line = true;
 
                       const auto normal_q = fe_face_values.normal_vector(q);
 
@@ -2815,7 +2873,7 @@ void StokesProblem<dim>::newton_iteration()
   pcout<< "Newton iteration" << std::endl;
 
   // set to 1 for testing
-  const unsigned int max_iter = 10;
+  const unsigned int max_iter = 20;
   bool assemble_matrix = false;
   assemble_system(assemble_matrix);
   const double initial_residual = system_rhs.l2_norm();
@@ -3303,6 +3361,7 @@ StokesProblem<dim>::save_checkpoint(const unsigned int step_number,
 
     ar & step_number;
     ar & runtime;
+    ar & present_timestep;
   }
 }
 
@@ -3321,19 +3380,19 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
   
 
   {
-    const bool   colorize = true;
-    const double width    = 2.;
-    GridGenerator::hyper_cube(triangulation, 0., width, colorize);
+    create_coarse_grid(triangulation);
     pcout << " n_levels: " << triangulation.n_levels() << std::endl;
     
     triangulation.load(checkpoints_dir + "restart-" + step_number_string + ".mesh");
-    set_boundary_ids();
+    // set_boundary_ids();
     print_mesh_info(triangulation);
-    dof_handler.distribute_dofs(fe);
-    pcout << " n_dofs: " << dof_handler.n_dofs() << std::endl;
+    // dof_handler.distribute_dofs(fe);
+    // pcout << " n_dofs: " << dof_handler.n_dofs() << std::endl;
+
+    setup_system();
+
     parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
       dof_handler);
-    setup_system();
 
     const unsigned int      n_vectors = 3;
     std::vector<VectorType> solutions(n_vectors);
@@ -3366,6 +3425,7 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
 
     ar &step_number;
     ar &runtime;
+    ar &present_timestep;
     if(step_number_old !=0)
       AssertDimension(step_number, step_number_old);
 
@@ -3419,8 +3479,10 @@ double StokesProblem<dim>::compute_volume(){
             //change the sgn of the sol
             //double h_val =smoothHeaviside(-1.0*sol_vals[q], eps);
             //area += fe_values_q.JxW(q) * h_val;
-            volume += fe_values.JxW(q) * fe_values.quadrature_point(q)(0)*
-                      (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
+            //volume += fe_values.JxW(q) *fe_values.quadrature_point(q)(0) *
+            //       (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
+            volume += fe_values.JxW(q) *fe_values.quadrature_point(q)(0) *
+                     (1. * phi_ch[q] * (1- psi_ac[q]) + 1. * phi_ch[q] * psi_ac[q]);
         }
 
     }
@@ -3434,12 +3496,11 @@ double StokesProblem<dim>::compute_volume(){
     return volume;
 }
 
-
 template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp520/";
+  const std::string prefix = "tmp521/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3458,12 +3519,13 @@ StokesProblem<dim>::run()
     pcout << "n refinement " << n_refinement << ':' << std::endl;
     pcout << " output_dir: " << output_dir << std::endl;
 
-    unsigned int step_number = 0;
-    double runtime           = 0.;
+    step_number = 0;
+    runtime           = 0.;
 
     const unsigned int max_step_number =1500;
-    const unsigned int output_interval = 10;
+    const unsigned int output_interval = 5;
     const unsigned int checkpoint_output_interval = 10;
+    const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
 
     const bool start_from_checkpoint = false;
 
@@ -3480,11 +3542,12 @@ StokesProblem<dim>::run()
         setup_initial_condition();
         relax_phase_field = true;
         const unsigned int n_relaxation_steps = 0;
+        // output_results(0);
         if(relax_phase_field)
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
             {
               pcout<<" relaxation phase field "<<i<<std::endl;
-              present_timestep = 0.005;
+              present_timestep = 1e-6;
               // if(i==0)
               //   theta = 1.;
               // else 
@@ -3493,9 +3556,12 @@ StokesProblem<dim>::run()
               old_old_solution = old_solution;              // n-1
               old_solution     = locally_relevant_solution; // n
               current_solution = old_solution; // u^*, newton initial guess
+              // output_results(i+1);
+              pcout<<std::endl;
             }
         pcout<<" done relaxation phase field "<<std::endl;            
         relax_phase_field = false;
+        // exit(0);
 
 
 
@@ -3527,7 +3593,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 1000;
+      step_number = 700;
       load_checkpoint(step_number, runtime);
     }
 
@@ -3540,7 +3606,7 @@ StokesProblem<dim>::run()
     while (step_number < max_step_number)
       {
         old_timestep     = present_timestep;
-        present_timestep = std::min(fix_timestep, (1e-4) * std::pow(1.05, step_number));        
+        present_timestep = std::min(fix_timestep, (1e-5) * std::pow(1.05, step_number));        
 
         step_number ++;
         runtime += present_timestep;
@@ -3562,9 +3628,6 @@ StokesProblem<dim>::run()
         old_old_solution = old_solution;          // n-1
         old_solution = locally_relevant_solution; // n
         current_solution = old_solution; // u^*, newton initial guess
-        old_timestep = present_timestep;
-
-        // theta = 0.5;
 
         newton_iteration();
 
@@ -3591,7 +3654,7 @@ StokesProblem<dim>::run()
             output_results(step_number);
           }
 
-      if(step_number%10 == 0)
+      if(step_number%save_checkpoint_interval == 0)
         save_checkpoint(step_number, runtime);
 
       if(step_number % checkpoint_output_interval == 0)
