@@ -3419,7 +3419,8 @@ double StokesProblem<dim>::compute_volume(){
             //change the sgn of the sol
             //double h_val =smoothHeaviside(-1.0*sol_vals[q], eps);
             //area += fe_values_q.JxW(q) * h_val;
-            volume += fe_values.JxW(q) * (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
+            volume += fe_values.JxW(q) * fe_values.quadrature_point(q)(0)*
+                      (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
         }
 
     }
@@ -3438,7 +3439,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp519/";
+  const std::string prefix = "tmp520/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
