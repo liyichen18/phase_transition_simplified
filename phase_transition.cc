@@ -786,8 +786,8 @@ namespace InitialConditions
               {
               case 2: //2D case
                 {
-                  const double height = 0.72455039792 * R;
-                  // const double height = R;
+                  //const double height = 0.72455039792 * R;
+                   const double height = R;
                   const double center_y = R - height;
                   center = Point<dim>(0, -center_y);
                   r = p.distance(center);
@@ -1201,7 +1201,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
-  , static_contact_angle(numbers::PI * 73.47127431/180.) // 73.47 degrees
+  , static_contact_angle(numbers::PI/2.) // 73.47 degrees
   , one_over_wall_relaxation_gamma(100)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
@@ -3501,7 +3501,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp528/";
+  const std::string prefix = "tmp530/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
