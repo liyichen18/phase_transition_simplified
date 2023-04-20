@@ -3466,13 +3466,15 @@ double StokesProblem<dim>::compute_volume(){
     typename DoFHandler<dim>::active_cell_iterator
     //typename 
     //cell = dof_handler_dg.begin_active(),
-       cell = dof_handler.begin_active(),
-       endc = dof_handler.end();
+    cell = dof_handler.begin_active(),
+    endc = dof_handler.end();
+    const Vector<double> local_solution(current_solution);
+    if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0){
     for( ; cell!=endc; ++cell){
         fe_values.reinit(cell);
 
-        fe_values[extractors.phi_ch].get_function_values(current_solution, phi_ch);
-        fe_values[extractors.psi_ac].get_function_values(current_solution, psi_ac);
+        fe_values[extractors.phi_ch].get_function_values(local_solution, phi_ch);
+        fe_values[extractors.psi_ac].get_function_values(local_solution, psi_ac);
 
 
 //#pragma omp parallel for reduction(+:area)
@@ -3486,6 +3488,7 @@ double StokesProblem<dim>::compute_volume(){
                       (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
         }
 
+    }
     }
     //deallog<<"done! area = "<<area<<std::endl;
     deallog<<"done! volume = "<<volume<<std::endl;
@@ -3501,7 +3504,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp567/";
+  const std::string prefix = "tmp568/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
