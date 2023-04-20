@@ -787,7 +787,7 @@ namespace InitialConditions
               case 2: //2D case
                 {
                   //const double height = 0.72455039792 * R;
-                  const double height =  0.5 * R;
+                   const double height = R;
                   const double center_y = R - height;
                   center = Point<dim>(0, -center_y);
                   r = p.distance(center);
@@ -803,7 +803,7 @@ namespace InitialConditions
             const double d = R - r;
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.4; // has to below melting temperature
+            const double initial_solid_layer = 0.08; // has to below melting temperature
             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
@@ -1170,8 +1170,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , test_case(testcase)
   , n_refinement(6)
   , density_l(1.)  
-  //, density_s(1. * density_l)
-  , density_s(9.162000e-01 * density_l)
+  , density_s(1. * density_l)
+  //, density_s(9.162000e-01 * density_l)
   , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
@@ -3501,7 +3501,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp550/";
+  const std::string prefix = "tmp551/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3542,7 +3542,7 @@ StokesProblem<dim>::run()
 
         setup_initial_condition();
         relax_phase_field = true;
-        const unsigned int n_relaxation_steps = 0;
+        const unsigned int n_relaxation_steps = 1;
         // output_results(0);
         if(relax_phase_field)
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
