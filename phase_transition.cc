@@ -3457,24 +3457,25 @@ double StokesProblem<dim>::compute_volume(){
     std::vector<double>         phi_ch(n_q_points);
     std::vector<double>         psi_ac(n_q_points);
     
-
+    
     //const double eps = 1.5*hmin/(q_degree_dg*1.0);
     //double area = 0.;
     
-    double volume = 0.;
+    double local_volume = 0.;
 
     typename DoFHandler<dim>::active_cell_iterator
     //typename 
     //cell = dof_handler_dg.begin_active(),
     cell = dof_handler.begin_active(),
     endc = dof_handler.end();
-    const Vector<double> local_solution(current_solution);
-    if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0){
     for( ; cell!=endc; ++cell){
+      if(cell->is_locally_owned()){
         fe_values.reinit(cell);
 
-        fe_values[extractors.phi_ch].get_function_values(local_solution, phi_ch);
-        fe_values[extractors.psi_ac].get_function_values(local_solution, psi_ac);
+        fe_values[extractors.phi_ch].get_function_values(current_solution, phi_ch);
+        fe_values[extractors.psi_ac].get_function_values(current_solution, psi_ac);
+
+
 
 
 //#pragma omp parallel for reduction(+:area)
@@ -3484,12 +3485,13 @@ double StokesProblem<dim>::compute_volume(){
             //area += fe_values_q.JxW(q) * h_val;
             //volume += fe_values.JxW(q) *fe_values.quadrature_point(q)(0) *
             //       (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
-            volume += 2 * numbers::PI  * fe_values.JxW(q) * fe_values.quadrature_point(q)(0) *
+            local_volume += 2 * numbers::PI  * fe_values.JxW(q) * fe_values.quadrature_point(q)(0) *
                       (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
         }
+      }
 
     }
-    }
+    double volume = Utilities::MPI::sum(local_volume,MPI_COMM_WORLD);
     //deallog<<"done! area = "<<area<<std::endl;
     deallog<<"done! volume = "<<volume<<std::endl;
     //time_ns.stop();
