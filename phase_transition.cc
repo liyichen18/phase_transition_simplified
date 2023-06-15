@@ -1157,7 +1157,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , cs(4.899618e-01)
   , cg(2.404398e-01)
   , eta_l(1.)
-  , eta_s(500.)
+  , eta_s(1000.)
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
   , surface_tension_psi_ac(0.5)
@@ -3376,7 +3376,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp585/";
+  const std::string prefix = "tmp586/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
