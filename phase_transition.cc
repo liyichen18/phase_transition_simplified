@@ -928,24 +928,24 @@ namespace DimensionlessGroups
   // const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
 
   
-  const double G      =2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
-  const double Pi_T   =8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
-  const double Pi_eta =1.6e+01;//  1.090104e+06; // sensible heat / visicosity
-  const double Ste    =4.000e-0;  //  1.252695e-02; // Stefan number
-  const double We     =1.250000e-01;  //  1.000000e+00; // Weber number
-  const double Re     =2.500000e-01;  //  7.503584e+01; // Reynolds number
-  const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
+ // const double G      =2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
+ // const double Pi_T   =8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
+ // const double Pi_eta =1.6e+01;//  1.090104e+06; // sensible heat / visicosity
+ // const double Ste    =4.000e-0;  //  1.252695e-02; // Stefan number
+ // const double We     =1.250000e-01;  //  1.000000e+00; // Weber number
+ // const double Re     =2.500000e-01;  //  7.503584e+01; // Reynolds number
+ // const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
   const double G_ch      = 0; // 1/G characterises Thompson-Gibbs effect
   const double Pi_T_ch   = 0; // sensible heat / surface tension (AC/CH)
 
   // Yue's parameters
-  // const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
-  // const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
-  // const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
-  // const double Ste    = 1.252695e+01; // Stefan number
-  // const double We     = 1.000000e+00; // Weber number
-  // const double Re     = 7.503584e+01; // Reynolds number
-  // const double Pe     = 1.010063e+03; // Peclet number
+   const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
+   const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
+   const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
+   const double Ste    = 1.252695e+01; // Stefan number
+   const double We     = 1.000000e+00; // Weber number
+   const double Re     = 7.503584e+01; // Reynolds number
+   const double Pe     = 1.010063e+03; // Peclet number
 
   // exp parameters
   // const double G      = 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
@@ -3506,7 +3506,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp587/";
+  const std::string prefix = "tmp589/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3533,7 +3533,7 @@ StokesProblem<dim>::run()
     const unsigned int checkpoint_output_interval = 10;
     const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
 
-    const bool start_from_checkpoint = false;
+    const bool start_from_checkpoint = false; //false;
 
     if(!start_from_checkpoint)
       {
@@ -3599,7 +3599,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 700;
+      step_number = 1280;
       load_checkpoint(step_number, runtime);
     }
 
