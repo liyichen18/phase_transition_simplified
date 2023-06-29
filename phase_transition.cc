@@ -340,7 +340,7 @@ namespace InlineFunctions
                         const double eps,
                         const double h)
   {
-    // h is computed from mathematica.
+    // h is computed from mathematica, and it's related to density ratio
     return surface_tension * eps / (h * numbers::SQRT2 * rho1);
   }
 
@@ -786,8 +786,8 @@ namespace InitialConditions
               {
               case 2: //2D case
                 {
-                  //const double height = 0.72455039792 * R;
-                   const double height = R;
+                  const double height = 0.72455039792 * R;
+                  // const double height = R;
                   const double center_y = R - height;
                   center = Point<dim>(0, -center_y);
                   r = p.distance(center);
@@ -803,14 +803,14 @@ namespace InitialConditions
             const double d = R - r;
             const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 0.2; // has to below melting temperature
+            const double initial_solid_layer = 0.08; // has to below melting temperature
             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
-            const double temperature_transition_function = transition_function(y, initial_solid_layer+0.1, initial_solid_layer+0.3);
+            const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
 
             const double initial_t =
               (1. - temperature_transition_function) * initial_temperature +
-              temperature_transition_function * boundary_temperature;
+              temperature_transition_function * melting_temperature;
 
             for(unsigned int comp = 0; comp < values.size(); ++comp)
               {
@@ -928,24 +928,24 @@ namespace DimensionlessGroups
   // const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
 
   
- // const double G      =2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
- // const double Pi_T   =8.000e+00; //  1.452778e+04; // sensible heat / surface tension (AC/CH)
- // const double Pi_eta =1.6e+01;//  1.090104e+06; // sensible heat / visicosity
- // const double Ste    =4.000e-0;  //  1.252695e-02; // Stefan number
- // const double We     =1.250000e-01;  //  1.000000e+00; // Weber number
- // const double Re     =2.500000e-01;  //  7.503584e+01; // Reynolds number
- // const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
+  const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
+  const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
+  const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
+  const double Ste    = 1.252695e+01; // Stefan number
+  const double We     = 1.000000e+00; // Weber number
+  const double Re     = 7.503584e+01; // Reynolds number
+  const double Pe     = 1.010063e+0; // Peclet number
   const double G_ch      = 0; // 1/G characterises Thompson-Gibbs effect
   const double Pi_T_ch   = 0; // sensible heat / surface tension (AC/CH)
 
   // Yue's parameters
-   const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
-   const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
-   const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
-   const double Ste    = 1.252695e+01; // Stefan number
-   const double We     = 1.000000e+00; // Weber number
-   const double Re     = 7.503584e+01; // Reynolds number
-   const double Pe     = 1.010063e+03; // Peclet number
+  // const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
+  // const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
+  // const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
+  // const double Ste    = 1.252695e+01; // Stefan number
+  // const double We     = 1.000000e+00; // Weber number
+  // const double Re     = 7.503584e+01; // Reynolds number
+  // const double Pe     = 1.010063e+03; // Peclet number
 
   // exp parameters
   // const double G      = 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
@@ -1025,7 +1025,8 @@ private:
     save_checkpoint(const unsigned int step_number, const double runtime);
     void
     load_checkpoint(unsigned int &step_number, double &runtime);
-    double compute_volume();
+    double compute_mass() const;
+    void write_mass(std::ofstream &mass_file, const double mass) const;
 
 
     const unsigned int velocity_degree;
@@ -1166,43 +1167,42 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                     TimerOutput::wall_times)
   , component_ids(ComponentIndices<dim>())
   , extractors(ComponentIndices<dim>())
-  , eps(0.04)
+  , eps(0.02)
   , test_case(testcase)
-  , n_refinement(6)
+  , n_refinement(7)
   , density_l(1.)  
-  //, density_s(1. * density_l)
   , density_s(9.162000e-01 * density_l)
   , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
   , inv_density_l(1. / density_l)
   , inv_density_g(1. / density_g)
-  , present_timestep(5e-2)
+  , present_timestep(1.5e-3)
   , old_timestep(present_timestep)
   , fix_timestep(present_timestep)
   , cl(1.)
-  , cs(4.899618e-01)
-  , cg(2.404398e-01)
+  , cs(cl)//(4.899618e-01)
+  , cg(cl)//(2.404398e-01)
   , eta_l(1.)
-  , eta_s(100.)
+  , eta_s(300.)
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
-  , surface_tension_psi_ac(0.5)
+  , surface_tension_psi_ac(0.8)
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor.
   , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
-  , mobility_phi(1e-4)
-  , mobility_psi(1e-1)
+  , mobility_phi(1e-3)
+  , mobility_psi(1.)
   , latent_heat(1)
   , melting_t(273.)
   , k_l(1.) //  thermal_conductivity(1.)
   , k_s(3.994602e+00)
   , k_g(4.383266e-02)
-  , initial_temperature(melting_t + 20.)
+  , initial_temperature(melting_t+20.)
   , boundary_temperature(melting_t-2.)
   , ambient_pressure(0.)
   , mapping(1)
-  , static_contact_angle(numbers::PI/2.) // 73.47 degrees
-  , one_over_wall_relaxation_gamma(0.001)
+  , static_contact_angle(numbers::PI * 73.47127431/180.) // 73.47 degrees
+  , one_over_wall_relaxation_gamma(100)
   , wall_velocity(Tensor<1, dim>())
   , use_adaptive_refinement(true)
   , min_mesh_size(0.01)
@@ -3374,9 +3374,9 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
   const unsigned int step_number_old = step_number;
   std::string step_number_string;
   if(step_number != 0)
-    step_number_string = Utilities::int_to_string(step_number, 5);  
+    step_number_string = "-" + Utilities::int_to_string(step_number, 5);  
   pcout<<" load checkpoint from: "
-  << (checkpoints_dir + "restart-" + step_number_string + ".mesh")
+  << (checkpoints_dir + "restart" + step_number_string + ".mesh")
   << std::flush;
   
 
@@ -3384,7 +3384,7 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
     create_coarse_grid(triangulation);
     pcout << " n_levels: " << triangulation.n_levels() << std::endl;
     
-    triangulation.load(checkpoints_dir + "restart-" + step_number_string + ".mesh");
+    triangulation.load(checkpoints_dir + "restart" + step_number_string + ".mesh");
     // set_boundary_ids();
     print_mesh_info(triangulation);
     // dof_handler.distribute_dofs(fe);
@@ -3421,7 +3421,7 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
   {
     // load other parameters:
     // std::ifstream                   ifs("checkpoint.dat");
-    std::ifstream                   ifs(checkpoints_dir + "restart-" + step_number_string + ".dat");
+    std::ifstream                   ifs(checkpoints_dir + "restart" + step_number_string + ".dat");
     boost::archive::binary_iarchive ar(ifs);
 
     ar &step_number;
@@ -3434,12 +3434,10 @@ StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
   pcout<<" loaded checkpoint from step: "<<step_number<<" runtime: "<<runtime<<std::endl;
 }
 
+
 template <int dim>
-double StokesProblem<dim>::compute_volume(){
-  deallog<<" computing volume...  ";
-  TimerOutput::Scope timer_section(computing_timer, "compute volume");
-  Timer time_ns;
-  time_ns.start();
+double StokesProblem<dim>::compute_mass() const {
+  deallog<<" computing mass...  ";
   //const unit q_degree_dg = 4;
    //const uint q_degree_dg = 4;
     //const QTrapez<1>     q_trapez;
@@ -3451,62 +3449,55 @@ double StokesProblem<dim>::compute_volume(){
 
     FEValues<dim> fe_values(fe,
                             quadrature_formula,
-                            update_values | 
+                            update_values |
                             update_quadrature_points | update_JxW_values);
     const unsigned int n_q_points    = quadrature_formula.size();
     std::vector<double>         phi_ch(n_q_points);
     std::vector<double>         psi_ac(n_q_points);
-    
-    
-    //const double eps = 1.5*hmin/(q_degree_dg*1.0);
-    //double area = 0.;
-    
-    double local_volume = 0.;
+
+    double local_mass = 0.;
 
     typename DoFHandler<dim>::active_cell_iterator
-    //typename 
-    //cell = dof_handler_dg.begin_active(),
     cell = dof_handler.begin_active(),
     endc = dof_handler.end();
-    for( ; cell!=endc; ++cell){
-      if(cell->is_locally_owned()){
-        fe_values.reinit(cell);
+    for( ; cell!=endc; ++cell)
+      {
+        if(cell->is_locally_owned())
+          {
+            fe_values.reinit(cell);
 
-        fe_values[extractors.phi_ch].get_function_values(current_solution, phi_ch);
-        fe_values[extractors.psi_ac].get_function_values(current_solution, psi_ac);
+            fe_values[extractors.phi_ch].get_function_values(current_solution, phi_ch);
+            fe_values[extractors.psi_ac].get_function_values(current_solution, psi_ac);
 
+            for(unsigned int q=0; q<n_q_points; ++q)
+              {
+                local_mass += 2 * numbers::PI  * fe_values.JxW(q) * fe_values.quadrature_point(q)(0) *
+                          (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
+              }
+          }
 
-
-
-//#pragma omp parallel for reduction(+:area)
-        for(unsigned int q=0; q<n_q_points; ++q){
-            //change the sgn of the sol
-            //double h_val =smoothHeaviside(-1.0*sol_vals[q], eps);
-            //area += fe_values_q.JxW(q) * h_val;
-            //volume += fe_values.JxW(q) *fe_values.quadrature_point(q)(0) *
-            //       (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
-            local_volume += 2 * numbers::PI  * fe_values.JxW(q) * fe_values.quadrature_point(q)(0) *
-                      (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
-        }
       }
-
-    }
-    double volume = Utilities::MPI::sum(local_volume,MPI_COMM_WORLD);
-    //deallog<<"done! area = "<<area<<std::endl;
-    deallog<<"done! volume = "<<volume<<std::endl;
-    //time_ns.stop();
-    //time_ns += time_ns.wall_time();
-    //deallog<<" done ("<< time_ns()<<"s) \n wall time is: "<<time_ns.wall_time()<<"s"<<std::endl;
-
-    //return area;
-    return volume;
+    const double mass = Utilities::MPI::sum(local_mass, mpi_communicator);
+    deallog<<"done! mass = "<< mass <<std::endl;
+    return mass;
 }
+
+
+template <int dim>
+void StokesProblem<dim>::write_mass(std::ofstream &mass_file, 
+                                    const double mass) const 
+{
+    mass_file << std::setw(10) << std::setprecision(10) << runtime
+           <<" " << std::setw(10) << std::setprecision(10) << mass
+           << std::endl;
+}
+
 
 template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp589/";
+  const std::string prefix = "tmp590/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3528,12 +3519,12 @@ StokesProblem<dim>::run()
     step_number = 0;
     runtime           = 0.;
 
-    const unsigned int max_step_number =1500;
+    const unsigned int max_step_number =1000;
     const unsigned int output_interval = 5;
-    const unsigned int checkpoint_output_interval = 10;
+    const unsigned int checkpoint_output_interval = 50;
     const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
 
-    const bool start_from_checkpoint = false; //false;
+    const bool start_from_checkpoint = false;
 
     if(!start_from_checkpoint)
       {
@@ -3547,7 +3538,7 @@ StokesProblem<dim>::run()
 
         setup_initial_condition();
         relax_phase_field = true;
-        const unsigned int n_relaxation_steps = 3;
+        const unsigned int n_relaxation_steps = 0;
         // output_results(0);
         if(relax_phase_field)
           for(unsigned int i=0; i<n_relaxation_steps; ++i)
@@ -3599,7 +3590,7 @@ StokesProblem<dim>::run()
     else
     {
       // restart step number
-      step_number = 1280;
+      step_number = 700;
       load_checkpoint(step_number, runtime);
     }
 
@@ -3608,11 +3599,21 @@ StokesProblem<dim>::run()
     // test_adaptive_refinement();
     // output_results(step_number+1);
     // exit(0);
+    std::ofstream mass_file;
+    const bool track_mass = true;
+    if(track_mass)
+      {
+        mass_file.open((output_dir + "mass_data" + ".dat").c_str());
+        mass_file << std::fixed;
+        double mass = compute_mass();
+        if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+          write_mass(mass_file, mass);
+      }
 
     while (step_number < max_step_number)
       {
         old_timestep     = present_timestep;
-        present_timestep = std::min(fix_timestep, (1e-5) * std::pow(1.05, step_number));        
+        present_timestep = std::min(fix_timestep, (1e-5) * std::pow(1.05, step_number));
 
         step_number ++;
         runtime += present_timestep;
@@ -3620,13 +3621,10 @@ StokesProblem<dim>::run()
         //   theta = 1.;
         // else
         //   theta = 0.5;
-        double volume=compute_volume();
         pcout << "###starting step " << step_number << "  dt= " << present_timestep
               << "  time= " << runtime 
               << " theta= " << theta
-              << " volume= " << volume
               << std::endl;
-
 
         if(step_number > 1 && use_adaptive_refinement)
           refine_grid();
@@ -3675,11 +3673,19 @@ StokesProblem<dim>::run()
         }
       }
 
+      if(track_mass)
+        {
+          double mass = compute_mass();
+          if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+            write_mass(mass_file, mass);
+        }
+
       pcout << std::endl;
       pcout << std::endl;
       }
     computing_timer.print_summary();
     computing_timer.reset();
+    mass_file.close();
 }
 } // namespace Step55
 
