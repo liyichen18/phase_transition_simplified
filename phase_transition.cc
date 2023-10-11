@@ -1171,7 +1171,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , test_case(testcase)
   , n_refinement(7)
   , density_l(1.)  
-  , density_s(0.85 * density_l)
+  , density_s(9.162000e-01 * density_l)
   , density_g(0.01 * density_l)
   , product_density_g_c_g(3.106963e-04)
   , inv_density_s(1. / density_s)
@@ -1184,7 +1184,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , cs(cl)//(4.899618e-01)
   , cg(cl)//(2.404398e-01)
   , eta_l(1.)
-  , eta_s(700.)
+  , eta_s(30000.)
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
   , surface_tension_psi_ac(1.)
@@ -3497,7 +3497,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp667/";
+  const std::string prefix = "tmp668/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -3519,7 +3519,7 @@ StokesProblem<dim>::run()
     step_number = 0;
     runtime           = 0.;
 
-    const unsigned int max_step_number =1000;
+    const unsigned int max_step_number =4000;
     const unsigned int output_interval = 5;
     const unsigned int checkpoint_output_interval = 50;
     const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
