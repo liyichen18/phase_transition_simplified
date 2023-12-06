@@ -1188,8 +1188,8 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , eta_g(9.670022e-03)
   , surface_tension_phi_ch(1.)
   , surface_tension_psi_ac(1.)
-  , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.002587110382798531)) // surface tension formula is changed, need to compute the factor.
-  , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.0004945739834439734)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
+  , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.1666666667)) // surface tension formula is changed, need to compute the factor.
+  , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.1666666667)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
   , mobility_phi(1e-3)
   , mobility_psi(1.)
   , latent_heat(1)
