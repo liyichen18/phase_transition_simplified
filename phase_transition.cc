@@ -1193,7 +1193,7 @@ private:
     {
       double aux_c = 100;
 
-      double const_temperature = 1.01;//T ∈ [0.9, 1.1] ∗ Tm
+      double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
     } simplified_model_parameters;
 
     
@@ -3260,7 +3260,7 @@ void StokesProblem<dim>::assemble_simplied_model_system(const bool assemble_matr
                           mat += shape_mu_phi_ch[j] * shape_mu_phi_ch[i];
 
                           // Equation 2: (λ_φ ∇ (δφ / 2), ∇ \tilde{μ}_φ)
-                          mat += (lambda_phi / 2.0) * (grad_shape_phi_ch[j] *
+                          mat += -(lambda_phi / 2.0) * (grad_shape_phi_ch[j] *
                                                        grad_shape_mu_phi_ch[i]);
 
                           // Equation 2: - (δq / (2 √(F^{n+1/2} + C)) ∂F^{n+1/2}/∂φ, \tilde{μ}_φ)
@@ -3275,7 +3275,7 @@ void StokesProblem<dim>::assemble_simplied_model_system(const bool assemble_matr
                           mat += shape_mu_psi_ac[j] * shape_mu_psi_ac[i];
 
                           // Equation 4: (λ_ψ ∇ (δψ / 2), ∇ \tilde{μ}_ψ)
-                          mat += (lambda_psi / 2.0) * (grad_shape_psi_ac[j] *
+                          mat += -(lambda_psi / 2.0) * (grad_shape_psi_ac[j] *
                                                        grad_shape_mu_psi_ac[i]);
 
                           // Equation 4: - (δq / (2 √(F^{n+1/2} + C)) ∂F^{n+1/2}/∂ψ, \tilde{μ}_ψ)
@@ -3318,7 +3318,7 @@ void StokesProblem<dim>::assemble_simplied_model_system(const bool assemble_matr
                   // Equation 2: (-μ_φ^*, \tilde{μ}_φ) 
                   // - (λ_φ (∇φ^*+ ∇φ^n)/2, ∇ \tilde{μ}_φ) 
                   // + ((q^n+ q^*) / (2*√(F^n+1/2 + C) ∂F^n+1/2/∂φ) ∂F^n+1/2/∂ψ, \tilde{μ}_φ)
-                  rhs += -mu_phi_ch_star[q] * shape_mu_phi_ch[i] -
+                  rhs += -mu_phi_ch_star[q] * shape_mu_phi_ch[i] +
                          (lambda_phi / 2.) *
                            (grad_phi_ch_star[q] + grad_phi_ch_n[q]) *
                            grad_shape_mu_phi_ch[i] +
@@ -3343,7 +3343,7 @@ void StokesProblem<dim>::assemble_simplied_model_system(const bool assemble_matr
                   // Equation 4: (-μ_ψ^*, \tilde{μ}_ψ)
                   // - (λ_ψ (∇ ψ^n + ∇ ψ^n)/2, ∇ \tilde{μ}_ψ)
                   // + ( (q^n + q^*)/ (2*√(F^n+1/2 + C)) ∂F^n+1/2/∂ψ, \tilde{μ}_ψ)
-                  rhs += -mu_psi_ac_star[q] * shape_mu_psi_ac[i] -
+                  rhs += -mu_psi_ac_star[q] * shape_mu_psi_ac[i] +
                          (lambda_psi / 2.) *
                            (grad_psi_ac_star[q] + grad_psi_ac_n[q]) *
                            grad_shape_mu_psi_ac[i] +
@@ -4126,7 +4126,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp796/";
+  const std::string prefix = "tmp797/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
