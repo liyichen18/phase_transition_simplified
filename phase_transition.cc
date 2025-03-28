@@ -1193,7 +1193,7 @@ private:
     {
       double aux_c = 100;
 
-      double const_temperature = 0.99;//T ∈ [0.9, 1.1] ∗ Tm
+      double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
     } simplified_model_parameters;
 
     
@@ -4126,7 +4126,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp803/";
+  const std::string prefix = "tmp804/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -4148,7 +4148,7 @@ StokesProblem<dim>::run()
     step_number = 0;
     runtime           = 0.;
 
-    const unsigned int max_step_number =1000;
+    const unsigned int max_step_number =10000;
     const unsigned int output_interval = 5;
     const unsigned int checkpoint_output_interval = 50;
     const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
