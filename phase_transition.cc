@@ -1193,7 +1193,7 @@ private:
     {
       double aux_c = 100;
 
-      double const_temperature = 1;//T ∈ [0.9, 1.1] ∗ Tm
+      double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
     } simplified_model_parameters;
 
     
@@ -1552,7 +1552,7 @@ void StokesProblem<dim>::setup_initial_condition()
   old_old_solution = locally_relevant_solution;
   current_solution = old_solution;
   //print the two norm of current_solution
-  pcout << "   two norm: " << current_solution.l2_norm() << std::endl;
+  //pcout << "   two norm: " << current_solution.l2_norm() << std::endl;
 }
 
 template <int dim>
@@ -4126,7 +4126,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp806/";
+  const std::string prefix = "tmp807/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -4148,7 +4148,7 @@ StokesProblem<dim>::run()
     step_number = 0;
     runtime           = 0.;
 
-    const unsigned int max_step_number =10000;
+    const unsigned int max_step_number =100000;
     const unsigned int output_interval = 5;
     const unsigned int checkpoint_output_interval = 50;
     const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
