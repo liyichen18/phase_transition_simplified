@@ -1300,7 +1300,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
   , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor.
   , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
   #endif
-  , mobility_phi(1e-4)
+  , mobility_phi(1e-2)
   , mobility_psi(1.)
   , latent_heat(1)
   , melting_t(1.)
@@ -4126,7 +4126,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp808/";
+  const std::string prefix = "tmp809/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
