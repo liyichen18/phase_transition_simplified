@@ -1193,7 +1193,7 @@ private:
     {
       double aux_c = 100;
 
-      double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+      double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
     } simplified_model_parameters;
 
     
@@ -1271,7 +1271,7 @@ StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                     TimerOutput::wall_times)
   , component_ids(ComponentIndices<dim>())
   , extractors(ComponentIndices<dim>())
-  , eps(0.05)
+  , eps(0.01)
   , test_case(testcase)
   , n_refinement(6)
   , density_l(1.)  
@@ -4126,7 +4126,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp814/";
+  const std::string prefix = "tmp815/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
