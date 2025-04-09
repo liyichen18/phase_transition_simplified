@@ -3076,7 +3076,8 @@ void StokesProblem<dim>::assemble_simplied_model_system(const bool assemble_matr
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
     const double temperature_t = simplified_model_parameters.const_temperature;
-
+    pcout << "Using T = " << temperature_t << std::endl;
+    
     double mat, rhs;
     for (const auto &cell : dof_handler.active_cell_iterators())
         if (cell->is_locally_owned())
