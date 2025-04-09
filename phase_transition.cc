@@ -1193,7 +1193,7 @@ private:
     {
       double aux_c = 10;
 
-      double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
+      double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
     } simplified_model_parameters;
 
     
@@ -4127,7 +4127,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp825/";
+  const std::string prefix = "tmp826/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
