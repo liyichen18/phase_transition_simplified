@@ -880,10 +880,9 @@ namespace InitialConditions
               }
 
             const double d = R - r;
-            //const double phi = 0.5 * (1. + std::tanh(d/eps1));
-            const double phi = 0;
+            const double phi = 0.5 * (1. + std::tanh(d/eps1));
 
-            const double initial_solid_layer = 1; // has to below melting temperature
+            const double initial_solid_layer = 0.2; // has to below melting temperature
             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
             // const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
@@ -1192,12 +1191,10 @@ private:
 
     struct SimpliedModelParameters
     {
-      double aux_c = 100;
+      double aux_c = 0;
 
-      double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+      double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
     } simplified_model_parameters;
-    
-    
 
     
 };
@@ -3078,7 +3075,6 @@ void StokesProblem<dim>::assemble_simplied_model_system(const bool assemble_matr
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
     const double temperature_t = simplified_model_parameters.const_temperature;
-    pcout << "Using T = " << temperature_t << std::endl;
 
     double mat, rhs;
     for (const auto &cell : dof_handler.active_cell_iterators())
@@ -4130,7 +4126,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp822/";
+  const std::string prefix = "tmp823/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
