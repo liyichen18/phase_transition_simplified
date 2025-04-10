@@ -3442,6 +3442,14 @@ void StokesProblem<dim>::assemble_simplied_model_system(const bool assemble_matr
 
     timer.stop();
     pcout<<" assemble time: "<<timer.wall_time()<<std::endl;    
+
+    double sum_aux_q = 0.0;
+      for (const double &q_value : aux_q_star)
+            sum_aux_q += q_value * q_value;
+
+    pcout << "Aux_q L2 approx norm in cell: " << std::sqrt(sum_aux_q) << std::endl;
+
+
 }
 
 
@@ -4128,7 +4136,7 @@ template <int dim>
 void
 StokesProblem<dim>::run()
 {
-  const std::string prefix = "tmp828/";
+  const std::string prefix = "tmp829/";
 
   output_dir      = "./output/" + prefix;
   checkpoints_dir = "./checkpoints/" + prefix;
@@ -4283,6 +4291,8 @@ StokesProblem<dim>::run()
         //           }
         //       }
         // }
+
+
 
         if ((step_number % output_interval == 0)||(step_number <21 ))
           {
