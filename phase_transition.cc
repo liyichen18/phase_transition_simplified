@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     const double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
+     const double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
    };
  
  namespace InlineFunctions
@@ -3094,7 +3094,7 @@
  
      const double temperature_t = initial_temperature;
      pcout << "Using T = " << temperature_t << std::endl;
-     
+
      double mat, rhs;
      for (const auto &cell : dof_handler.active_cell_iterators())
          if (cell->is_locally_owned())
@@ -4146,7 +4146,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp830/";
+   const std::string prefix = "tmp831/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
