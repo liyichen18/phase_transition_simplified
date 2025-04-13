@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     const double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     const double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
  
  namespace InlineFunctions
@@ -1326,7 +1326,8 @@
    , k_l(1.) //  thermal_conductivity(1.)
    , k_s(1)
    , k_g(1)
-   , initial_temperature(simplified_model_parameters.const_temperature)
+   , initial_temperature(melting_t+20.)
+   //, initial_temperature(simplified_model_parameters.const_temperature)
    , boundary_temperature(melting_t-2.)
    , ambient_pressure(0.)
    , mapping(1)
@@ -3091,8 +3092,9 @@
      std::vector<Tensor<1,dim>> grad_shape_mu_psi_ac(dofs_per_cell);
  
      std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
- 
-     const double temperature_t = initial_temperature;
+     
+     const double temperature_t = simplified_model_parameters.const_temperature;
+     //const double temperature_t = initial_temperature;
      pcout << "Using T = " << temperature_t << std::endl;
 
      double mat, rhs;
@@ -4146,7 +4148,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp833/";
+   const std::string prefix = "tmp834/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4169,7 +4171,7 @@
      runtime           = 0.;
  
      const unsigned int max_step_number =20000;
-     const unsigned int output_interval = 100;
+     const unsigned int output_interval = 50;
      const unsigned int checkpoint_output_interval = 50;
      const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
  
