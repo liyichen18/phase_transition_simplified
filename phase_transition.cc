@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     const double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
+     const double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
    };
  
  namespace InlineFunctions
@@ -4149,7 +4149,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp838/";
+   const std::string prefix = "tmp839/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
