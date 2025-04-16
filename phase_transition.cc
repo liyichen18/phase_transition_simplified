@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     const double const_temperature = 1.4;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
  
  namespace InlineFunctions
@@ -894,12 +894,10 @@
                }
  
              const double d = R - r;
-             //const double phi = 0.5 * (1. + std::tanh(d/eps1));
-             const double phi = 1;
-
-             const double initial_solid_layer = 1; // has to below melting temperature
+             const double phi = 0.5 * (1. + std::tanh(d/eps1));
+ 
+             const double initial_solid_layer = 0.2; // has to below melting temperature
              const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
-
  
              // const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
  
@@ -1302,7 +1300,7 @@
    , inv_density_s(1. / density_s)
    , inv_density_l(1. / density_l)
    , inv_density_g(1. / density_g)
-   , present_timestep(0.5e-3)
+   , present_timestep(1.5e-3)
    , old_timestep(present_timestep)
    , fix_timestep(present_timestep)
    , cl(1.)
@@ -1328,8 +1326,8 @@
    , k_l(1.) //  thermal_conductivity(1.)
    , k_s(1)
    , k_g(1)
-   , initial_temperature(melting_t+20.)
-   //, initial_temperature(simplified_model_parameters.const_temperature)
+//   , initial_temperature(simplified_model_parameters.const_temperature)  
+   , initial_temperature(SimpliedModelParameters::const_temperature)
    , boundary_temperature(melting_t-2.)
    , ambient_pressure(0.)
    , mapping(1)
@@ -1538,7 +1536,7 @@
  #else
    tmp_initial_sol.reinit(block_owned_partitioning, mpi_communicator);
  #endif
- 
+   pcout << "temperature T at time_0= " << initial_temperature << std::endl;
    InitialConditions::InitialValues<dim> initial_values(
      eps, initial_temperature, melting_t, test_case, extractors, lambda_phi, lambda_psi, latent_heat);
  
@@ -3094,9 +3092,8 @@
      std::vector<Tensor<1,dim>> grad_shape_mu_psi_ac(dofs_per_cell);
  
      std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-     
-     const double temperature_t = simplified_model_parameters.const_temperature;
-     //const double temperature_t = initial_temperature;
+ 
+     const double temperature_t = initial_temperature;
      pcout << "Using T = " << temperature_t << std::endl;
 
      double mat, rhs;
@@ -4150,7 +4147,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp847/";
+   const std::string prefix = "tmp850/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4173,7 +4170,7 @@
      runtime           = 0.;
  
      const unsigned int max_step_number =20000;
-     const unsigned int output_interval = 50;
+     const unsigned int output_interval = 100;
      const unsigned int checkpoint_output_interval = 50;
      const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
  
@@ -4357,6 +4354,7 @@
          if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
            std::cout << "running " << enum_str[static_cast<int>(testcase)]
                      << std::endl;
+         //std::cout << "Using simplified_model_parameters.const_temperature = " << Step55::simplified_model_parameters.const_temperature << std::endl;
          StokesProblem<2> problem(2, testcase);
          problem.run();
      }
