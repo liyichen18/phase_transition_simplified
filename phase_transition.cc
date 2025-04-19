@@ -4169,7 +4169,7 @@
      step_number = 0;
      runtime           = 0.;
  
-     const unsigned int max_step_number =20000;
+     const unsigned int max_step_number =100000;
      const unsigned int output_interval = 100;
      const unsigned int checkpoint_output_interval = 50;
      const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
