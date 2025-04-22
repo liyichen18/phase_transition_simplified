@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     static constexpr double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
  
  namespace InlineFunctions
@@ -898,7 +898,7 @@
  
              //const double initial_solid_layer = 0.2; // has to below melting temperature
              //const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
-             const double psi = 1.0;
+             const double psi = 0.0;
  
              // const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
  
@@ -4148,7 +4148,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp863/";
+   const std::string prefix = "tmp864/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
