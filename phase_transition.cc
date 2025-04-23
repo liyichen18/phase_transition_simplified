@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     static constexpr double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
  
  namespace InlineFunctions
@@ -896,9 +896,8 @@
              const double d = R - r;
              const double phi = 0.5 * (1. + std::tanh(d/eps1));
  
-             //const double initial_solid_layer = 0.2; // has to below melting temperature
-             //const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
-             const double psi = 0.0;
+             const double initial_solid_layer = 0.2; // has to below melting temperature
+             const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
  
              // const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
  
@@ -1291,9 +1290,9 @@
                      TimerOutput::wall_times)
    , component_ids(ComponentIndices<dim>())
    , extractors(ComponentIndices<dim>())
-   , eps(0.02)
+   , eps(0.05)
    , test_case(testcase)
-   , n_refinement(7)
+   , n_refinement(6)
    , density_l(1.)  
    , density_s(density_l)
    , density_g(density_l)
@@ -1301,7 +1300,7 @@
    , inv_density_s(1. / density_s)
    , inv_density_l(1. / density_l)
    , inv_density_g(1. / density_g)
-   , present_timestep(0.1e-3)
+   , present_timestep(1.5e-3)
    , old_timestep(present_timestep)
    , fix_timestep(present_timestep)
    , cl(1.)
@@ -4148,7 +4147,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp865/";
+   const std::string prefix = "tmp866/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
