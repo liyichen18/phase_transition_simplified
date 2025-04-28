@@ -20,17 +20,17 @@
  #include <deal.II/base/quadrature_lib.h>
  #include <deal.II/base/function.h>
  #include <deal.II/base/timer.h>
- 
+
  #include <deal.II/lac/generic_linear_algebra.h>
- 
+
  #define FORCE_USE_OF_TRILINOS
  #define USE_DIRECT_SOLVER // direct solver cannot be used with block matrix
  // #define USE_UMFPACK
  // #define USE_AXISYMMETRY // axisymmetric implementation
  // #define USE_NEW_R
- 
+
  #define USE_SIMPLIFIED_MODEL
- 
+
  namespace LA
  {
  #if defined(DEAL_II_WITH_PETSC) && !defined(DEAL_II_PETSC_WITH_COMPLEX) && \
@@ -43,7 +43,7 @@
  #  error DEAL_II_WITH_PETSC or DEAL_II_WITH_TRILINOS required
  #endif
  } // namespace LA
- 
+
  #include <deal.II/lac/vector.h>
  #include <deal.II/lac/full_matrix.h>
  #include <deal.II/lac/solver_bicgstab.h>
@@ -53,12 +53,12 @@
  #include <deal.II/lac/solver_bicgstab.h>
  #include <deal.II/lac/affine_constraints.h>
  #include <deal.II/lac/dynamic_sparsity_pattern.h>
- 
+
  #include <deal.II/lac/petsc_sparse_matrix.h>
  #include <deal.II/lac/petsc_vector.h>
  #include <deal.II/lac/petsc_solver.h>
  #include <deal.II/lac/petsc_precondition.h>
- 
+
  #include <deal.II/grid/grid_generator.h>
  #include <deal.II/grid/manifold_lib.h>
  #include <deal.II/grid/grid_in.h>
@@ -76,7 +76,7 @@
  #include <deal.II/numerics/data_out.h>
  #include <deal.II/numerics/error_estimator.h>
  #include <deal.II/numerics/solution_transfer.h>
- 
+
  #include <deal.II/base/utilities.h>
  #include <deal.II/base/conditional_ostream.h>
  #include <deal.II/base/index_set.h>
@@ -84,16 +84,16 @@
  #include <deal.II/distributed/tria.h>
  #include <deal.II/distributed/grid_refinement.h>
  #include <deal.II/distributed/solution_transfer.h>
- 
+
  #include <cmath>
  #include <fstream>
  #include <iostream>
  #include <functional>
- 
+
  namespace Step55
  {
  using namespace dealii;
- 
+
    enum class TestCase
    {
      test1,
@@ -106,9 +106,9 @@
    {
      static constexpr double aux_c = 100;
 
-     static constexpr double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
- 
+
  namespace InlineFunctions
  {
    inline
@@ -121,7 +121,7 @@
      else
        return std::pow(phi, 3.) * (10. - 15. * phi + 6. * phi * phi);
    }
- 
+
    inline
    double new_r(const double phi, const double alpha)
    {
@@ -147,7 +147,7 @@
        return 0.;
      }
    }
- 
+
    inline
    double new_r_prime(const double phi, const double alpha)
    {
@@ -168,8 +168,8 @@
        Assert(false, ExcNotImplemented("inlinefunction new_r_prime gets called with invalid phi"));
        return 0.;
      }
-   } 
- 
+   }
+
    inline
    double new_r_prime_prime(const double phi, const double alpha)
    {
@@ -189,8 +189,8 @@
        Assert(false, ExcNotImplemented("inlinefunction new_r_prime_prime gets called with invalid phi"));
        return 0.;
      }
-   } 
- 
+   }
+
    inline
    double r_prime(const double phi)
    {
@@ -199,7 +199,7 @@
      else
        return 30. * phi * phi * (1. - phi) * (1. - phi);
    }
- 
+
    inline
    double r_prime_prime(const double phi)
    {
@@ -208,26 +208,26 @@
      else
        return 60. * phi * (1. - phi) * (1. - 2. * phi);
    }
- 
+
    // used in wall energy
    inline
    double q(const double phi)
    {
      return (1. - std::cos(numbers::PI * phi)) * 0.5;
    }
- 
+
    inline
    double q_prime(const double phi)
    {
      return  std::sin(numbers::PI * phi) * 0.5 * numbers::PI;
    }
- 
+
    inline
    double q_prime_prime(const double phi)
    {
      return  std::cos(numbers::PI * phi) * 0.5 * numbers::PI * numbers::PI;
-   }  
- 
+   }
+
    // interpolation functions for 1/rho, c
    inline
    double f(const double phi, const double psi,
@@ -237,7 +237,7 @@
              fs * r(phi) * (1.-r(psi)) +
              fg * (1. - r(phi));
    }
- 
+
    // partial f/ partial phi
    inline
    double f_partial_phi(const double phi, const double psi,
@@ -245,7 +245,7 @@
    {
      return  r_prime(phi) * (r(psi) * (fl - fs) + fs - fg);
    }
- 
+
    // partial f/ partial psi
    inline
    double f_partial_psi(const double phi, const double psi,
@@ -253,7 +253,7 @@
    {
      return  r(phi) * r_prime(psi) * (fl - fs);
    }
- 
+
    // partial^2 f/ partial phi^2
    inline
    double f_partial2_phi2(const double phi, const double psi,
@@ -261,7 +261,7 @@
    {
      return  r_prime_prime(phi) * (r(psi) * (fl - fs) + fs - fg);
    }
- 
+
    // partial^2 f/ partial psi^2
    inline
    double f_partial2_psi2(const double phi, const double psi,
@@ -269,7 +269,7 @@
    {
      return  r(phi) * r_prime_prime(psi) * (fl - fs);
    }
- 
+
    // partial f/ (partial phi partial psi)
    inline
    double f_partial_phi_partial_psi(const double phi, const double psi,
@@ -277,50 +277,50 @@
    {
      return  r_prime(phi) * r_prime(psi) * (fl - fs);
    }
- 
+
    // interpolation function for eta
- 
+
    inline
    double g(const double phi, const double psi,
                      const double gl, const double gs, const double gg)
    {
      return  gl * phi * psi + gs * phi * (1.-psi) + gg * (1. - phi);
    }
- 
+
    inline
    double g_pratial_phi(const double psi,
                      const double gl, const double gs, const double gg)
    {
      return  psi * (gl - gs) + gs - gg;
    }
- 
+
    inline
    double g_pratial_psi(const double phi,
                      const double gl, const double gs)
    {
      return  phi * (gl - gs);
    }
- 
+
    // double-well potential
- 
+
    inline
    double w(const double phi, const double eps)
    {
      return  phi * phi * (1. - phi) * (1. - phi) / (eps*eps);
    }
- 
+
    inline
    double w_prime(const double phi, const double eps)
    {
      return  2. * phi * (1. - phi) * (1. - 2.*phi) / (eps*eps);
    }
- 
+
    inline
    double w_prime_prime(const double phi, const double eps)
    {
      return  (2.  - 12. * phi + 12. * phi * phi) / (eps*eps);
    }
- 
+
    inline double
    compute_lambda_from_surface_tension(const double rho_plus,
                                        const double rho_minus,
@@ -331,7 +331,7 @@
      // for phi_ch, rho_plus = rho_l, rho_minus = rho_g
      const double diff_rho = rho_minus - rho_plus;
      const double sum_rho = rho_plus + rho_minus;
- 
+
      if(std::fabs(diff_rho) < 1e-8)
        return surface_tension * 3. * numbers::SQRT2 * eps / (sum_rho * 0.5);
      else
@@ -341,10 +341,10 @@
        / (eps * numbers::SQRT2 * diff_rho * diff_rho * diff_rho);
        Assert(std::fabs(tmp) > 1e-8, ExcMessage("Lambda is negative."));
        return surface_tension / tmp;
- 
+
      }
    }
- 
+
    inline double
    compute_lambda_from_h(const double rho1,
                          const double surface_tension,
@@ -354,7 +354,7 @@
      // h is computed from mathematica, and it's related to density ratio
      return surface_tension * eps / (h * numbers::SQRT2 * rho1);
    }
- 
+
    inline double
    compute_surface_tension_from_lambda(const double rho_plus,
                                        const double rho_minus,
@@ -363,7 +363,7 @@
    {
      const double diff_rho = rho_minus - rho_plus;
      const double sum_rho = rho_plus + rho_minus;
- 
+
      if(std::fabs(diff_rho) < 1e-8)
        return lambda * (sum_rho * 0.5) / (eps * 3. * numbers::SQRT2);
      else
@@ -372,10 +372,10 @@
        * (diff_rho * sum_rho + 2. * rho_minus * rho_plus * std::log(rho_plus/rho_minus))
        / (eps * numbers::SQRT2 * diff_rho * diff_rho * diff_rho);
        return tmp * lambda;
- 
+
      }
    }
- 
+
    inline void
    limit_phase_field_function(double &pf_function)
    {
@@ -384,8 +384,8 @@
      else if (pf_function > 1.)
        pf_function = 1.;
    }
- 
- 
+
+
     // Function F(phi, psi)
     double F(const double phi, const double psi, const double eps,
      const double lambda_phi, const double lambda_psi,
@@ -396,7 +396,7 @@
     double term3 = r(phi) * r(psi) * L * (1.0 - T / Tm);
     return term1 + term2 + term3;
   }
- 
+
   double dFdphi(const double phi, const double psi, const double eps,
      const double lambda_phi, const double lambda_psi,
   const double L, const double T, const double Tm)
@@ -406,7 +406,7 @@
     double term3 = r_prime(phi) * r(psi) * L * (1.0 - T / Tm);
     return term1 + term2 + term3;
   }
- 
+
   double dFdpsi(const double phi, const double psi, const double eps,
      const double lambda_phi, const double lambda_psi,
   const double L, const double T, const double Tm)
@@ -415,7 +415,7 @@
     double term2 = r(phi) * r_prime(psi) * L * (1.0 - T / Tm);
     return term1 + term2;
   }
- 
+
   double
   extrapolate_solution(const double phi_n,
                        const double phi_n_minus_1,
@@ -427,25 +427,25 @@
     // return phi_n + (current_time - dt_n) * (phi_n - phi_n_minus_1) /
     //                  (t_n - t_n_minus_1);
   }
- 
- 
+
+
  } //namespace inline funcitons
- 
+
  bool
  fexists(const std::string &filename)
  {
    std::ifstream ifile(filename.c_str());
- 
+
    // return whether construction of the input file has succeeded;
    // success requires the file to exist and to be readable
    return static_cast<bool>(ifile);
  }
- 
+
  void
  move_file(const std::string &old_name, const std::string &new_name)
  {
    int error = system(("mv " + old_name + " " + new_name).c_str());
- 
+
    // If the above call failed, e.g. because there is no command-line
    // available, try with internal functions.
    if (error != 0)
@@ -460,7 +460,7 @@
                                      "The error code is " +
                                      Utilities::to_string(error) + ".")));
          }
- 
+
        error = rename(old_name.c_str(), new_name.c_str());
        AssertThrow(error == 0,
                    ExcMessage(std::string("Unable to rename files: ") +
@@ -469,8 +469,8 @@
                               Utilities::to_string(error) + "."));
      }
  }
- 
- 
+
+
    template <int dim>
    void
    print_mesh_info(const Triangulation<dim> &triangulation)
@@ -481,7 +481,7 @@
                << " dimension: " << dim << std::endl
                << " no. of cells: " << Utilities::MPI::sum(triangulation.n_active_cells(), MPI_COMM_WORLD)
                << std::endl;
- 
+
      {
        std::map<types::boundary_id, unsigned int> boundary_count;
        for (const auto &face : triangulation.active_face_iterators())
@@ -500,7 +500,7 @@
      // grid_out.write_vtu(triangulation, out);
      // pcout << " written to " << filename << std::endl << std::endl;
    }
- 
+
    template <int dim>
    struct ComponentIndices
    {
@@ -521,7 +521,7 @@
      const unsigned int       aux_q = dim + 6; //aux q
      #endif
    };
- 
+
    template <int dim>
    struct Extractors
    {
@@ -538,7 +538,7 @@
        , temperature((component_indices.temperature))
  #endif
      {}
- 
+
      Extractors(const Extractors<dim> &ex)
        : phi_ch(ex.phi_ch.component)
        , mu_phi_ch(ex.mu_phi_ch.component)
@@ -562,21 +562,21 @@
      FEValuesExtractors::Scalar temperature;
  #endif
    };
- 
- 
+
+
    /******************************************************************
-     This function labels the interface cells as refine and 
+     This function labels the interface cells as refine and
      non-interface cells as coarsen.
      1. The refinement is performed only if the mesh size is in [min_h,max_h]
         AND the level of refinement is in [min_level,max_level].
      2. The interface is defined as the zero level set of the component-th
         component of the vector solution. component is in [0,n_component)
         Apr 1, 2016, Pengtao Yue
-     3. function returns true if a coarsen_and_refine is required and 
+     3. function returns true if a coarsen_and_refine is required and
         false is the old mesh is to be kept.
    *******************************************************************/
    template <int dim, typename VectorType>
-   bool label_mesh(const DoFHandler<dim>    & dof_handler, 
+   bool label_mesh(const DoFHandler<dim>    & dof_handler,
                    const FESystem<dim>      & fe,
                    const VectorType         & solution,
                    //minimum mesh size, defined on the interface
@@ -584,24 +584,24 @@
                    //maximum mesh size, defined in the bulk
                    const double             & max_h,
                    //minimum refinement level
-                   const int                & min_level,     
-                   //maximum refinement level                                        
-                   const int                & max_level,     
+                   const int                & min_level,
+                   //maximum refinement level
+                   const int                & max_level,
                    //component extractor for phase field phi
                    const Extractors<dim>    &extractors,
                    const double             &width = 0.48
                    )
- 
+
    {
      const QTrapezoid<dim> quadrature;
      FEValues<dim> fe_values(fe,quadrature,update_values);
      const unsigned int n_q_points=quadrature.size();
-     
+
      std::vector<double> phi_ch_values(n_q_points);
      std::vector<double> psi_ac_values(n_q_points);
-     
+
      bool refine=false;
- 
+
      const auto find_max_min_values = [&](const std::vector<double> &values) {
        double max_value = -std::numeric_limits<double>::max();
        double min_value = std::numeric_limits<double>::max();
@@ -610,17 +610,17 @@
            max_value = std::max(max_value, values[q_point]);
            min_value = std::min(min_value, values[q_point]);
          }
- 
+
        return std::make_pair(min_value, max_value);
      };
- 
+
      const auto is_interface_cell = [&](const double min_value,
                                         const double max_value) {
        return ((max_value - 0.5) * (min_value - 0.5) < 0 ||
                std::abs(max_value - 0.5) < width ||
                std::abs(min_value - 0.5) < width);
      };
- 
+
      for(const auto &dof_cell : dof_handler.active_cell_iterators())
        if(dof_cell->is_locally_owned())
          {
@@ -629,20 +629,20 @@
                                                             phi_ch_values);
            fe_values[extractors.psi_ac].get_function_values(solution,
                                                             psi_ac_values);
- 
+
            const auto max_min_phi_ch = find_max_min_values(phi_ch_values);
            const auto max_min_psi_ac = find_max_min_values(psi_ac_values);
- 
+
            const double phi_ch_min = max_min_phi_ch.first;
            const double phi_ch_max = max_min_phi_ch.second;
            const double psi_ac_min = max_min_psi_ac.first * phi_ch_max;
            const double psi_ac_max = max_min_psi_ac.second * phi_ch_max;
- 
+
            const int    level = dof_cell->level();
            const double size  = dof_cell->minimum_vertex_distance();
- 
+
            if (
-             is_interface_cell(phi_ch_min, phi_ch_max) 
+             is_interface_cell(phi_ch_min, phi_ch_max)
            ||
                is_interface_cell(psi_ac_min, psi_ac_max)
                )
@@ -674,11 +674,11 @@
                  }
              }
          }
- 
+
      return refine;
    }
- 
- 
+
+
    double
    transition_function(const double phi,
                        const double lower_bound,
@@ -699,12 +699,12 @@
          return (1 + 2 * x) * (1 - x) * (1 - x);
        }
  }
- 
- 
- 
+
+
+
  namespace InitialConditions
  {
- 
+
    template <int dim>
    class InitialTemperature : public Function<dim>
    {
@@ -715,15 +715,15 @@
        , initial_t(initial_t)
        , extractors(ex)
      {}
- 
+
      virtual double
      value(const Point<dim> &p, const unsigned int component = 0) const override;
- 
+
      private:
      const double initial_t;
      const Extractors<dim> &extractors;
    };
- 
+
    template <int dim>
    double
    InitialTemperature<dim>::value(const Point<dim>  &,
@@ -732,8 +732,8 @@
      if(comp == extractors.temperature.component)
        return initial_t;
    }
- 
- 
+
+
    template <int dim>
    class InitialValues : public Function<dim>
    {
@@ -763,28 +763,28 @@
        , lambda_psi(lambda_psi)
        , latent_heat(latent_heat)
      {}
- 
+
      virtual void
      vector_value(const Point<dim> &p, Vector<double> &value) const override;
- 
+
      double
      get_alpha() const
      {
        return alpha;
      }
- 
+
      double
      get_boundary_temperature() const
      {
        return boundary_temperature;
      }
- 
+
      void
      set_boundary_temperature(const double t)
      {
        boundary_temperature = t;
      }
-       
+
    private:
        const double eps;
        const double initial_temperature;
@@ -794,9 +794,9 @@
        const TestCase test_case;
        const Extractors<dim> extractors;
        const double alpha = 0.2;
- 
+
    };
- 
+
    template <int dim>
    void InitialValues<dim>::vector_value(const Point<dim> &p,
                                          Vector<double> &  values) const
@@ -804,7 +804,7 @@
        const double eps1=eps * numbers::SQRT2;  //sqrt(2)* eps
        const double x=p(0);
        const double y=p(1);
- 
+
        switch (test_case)
          {
          case TestCase::test1: {
@@ -826,10 +826,10 @@
                    break;
                  }
                }
- 
+
              const double d = r - R;
              const double psi = 0.5 * (1. + std::tanh(d/eps1));
- 
+
              for(unsigned int comp = 0; comp < values.size(); ++comp)
                {
                  if (comp == extractors.psi_ac.component)
@@ -840,7 +840,7 @@
                    values(comp) = 1.;
                  else
                    values(comp) = 0;
- 
+
                }
                #endif
              break;
@@ -850,11 +850,11 @@
              const double w_ac = 0.5;
              const double d = x - w_ac;
              const double psi = 0.5 * (1. + std::tanh(d/eps1));
- 
+
              const double w_ch = 0.8;
              const double d_ch = w_ch - x;
              const double phi = 0.5 * (1. + std::tanh(d_ch/eps1));
- 
+
              for(unsigned int comp = 0; comp < values.size(); ++comp)
                {
                  if (comp == extractors.psi_ac.component)
@@ -865,8 +865,8 @@
                    values(comp) = phi;
                  else
                    values(comp) = 0;
- 
-               }          
+
+               }
  #endif
              break;
            }
@@ -892,19 +892,19 @@
                    break;
                  }
                }
- 
+
              const double d = R - r;
              const double phi = 0.5 * (1. + std::tanh(d/eps1));
- 
+
              const double initial_solid_layer = 0.2; // has to below melting temperature
              const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
- 
+
              // const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
- 
+
              // const double initial_t =
              //   (1. - temperature_transition_function) * initial_temperature +
              //   temperature_transition_function * melting_temperature;
- 
+
              for(unsigned int comp = 0; comp < values.size(); ++comp)
                {
                  if (comp == extractors.psi_ac.component)
@@ -925,7 +925,7 @@
                                        SimpliedModelParameters::aux_c);
                  else
                    values(comp) = 0;
- 
+
                }
              break;
            }
@@ -933,9 +933,9 @@
            Assert(false, ExcNotImplemented("Please choose the right test case"));
          }
    }
- 
+
  }// namespace initialcondition
- 
+
  namespace LinearSolvers
  {
  template <class Matrix, class Preconditioner>
@@ -943,16 +943,16 @@
  {
  public:
      InverseMatrix(const Matrix &m, const Preconditioner &preconditioner);
- 
+
      template <typename VectorType>
      void vmult(VectorType &dst, const VectorType &src) const;
- 
+
  private:
      const SmartPointer<const Matrix> matrix;
      const Preconditioner &           preconditioner;
  };
- 
- 
+
+
  template <class Matrix, class Preconditioner>
  InverseMatrix<Matrix, Preconditioner>::InverseMatrix(
      const Matrix &        m,
@@ -960,9 +960,9 @@
      : matrix(&m)
      , preconditioner(preconditioner)
  {}
- 
- 
- 
+
+
+
  template <class Matrix, class Preconditioner>
  template <typename VectorType>
  void
@@ -972,7 +972,7 @@
      SolverControl solver_control(src.size(), 1e-8 * src.l2_norm());
      SolverCG<LA::MPI::Vector> cg(solver_control);
      dst = 0;
- 
+
      try
      {
          cg.solve(*matrix, dst, src, preconditioner);
@@ -982,23 +982,23 @@
          Assert(false, ExcMessage(e.what()));
      }
  }
- 
- 
+
+
  template <class PreconditionerA, class PreconditionerS>
  class BlockDiagonalPreconditioner : public Subscriptor
  {
  public:
      BlockDiagonalPreconditioner(const PreconditionerA &preconditioner_A,
                                  const PreconditionerS &preconditioner_S);
- 
+
      void vmult(LA::MPI::BlockVector &      dst,
                 const LA::MPI::BlockVector &src) const;
- 
+
  private:
      const PreconditionerA &preconditioner_A;
      const PreconditionerS &preconditioner_S;
  };
- 
+
  template <class PreconditionerA, class PreconditionerS>
  BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::
  BlockDiagonalPreconditioner(const PreconditionerA &preconditioner_A,
@@ -1006,8 +1006,8 @@
      : preconditioner_A(preconditioner_A)
      , preconditioner_S(preconditioner_S)
  {}
- 
- 
+
+
  template <class PreconditionerA, class PreconditionerS>
  void BlockDiagonalPreconditioner<PreconditionerA, PreconditionerS>::vmult(
      LA::MPI::BlockVector &      dst,
@@ -1016,10 +1016,10 @@
      preconditioner_A.vmult(dst.block(0), src.block(0));
      preconditioner_S.vmult(dst.block(1), src.block(1));
  }
- 
+
  } // namespace LinearSolvers
- 
- 
+
+
  namespace DimensionlessGroups
  {
    // const double G      =2.000000e+01; // 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
@@ -1029,8 +1029,8 @@
    // const double We     =1.250000e-01;  //  1.000000e+00; // Weber number
    // const double Re     =2.500000e-01;  //  7.503584e+01; // Reynolds number
    // const double Pe     =1.000000e+00;  //  1.010063e+03; // Peclet number
- 
-   
+
+
    const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
    const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
    const double Pi_eta = 1.090104e+06; // sensible heat / visicosity
@@ -1040,7 +1040,7 @@
    const double Pe     = 1.010063e+0; // Peclet number
    const double G_ch      = 0; // 1/G characterises Thompson-Gibbs effect
    const double Pi_T_ch   = 0; // sensible heat / surface tension (AC/CH)
- 
+
    // Yue's parameters
    // const double G      = 1.159722e+03; // 1/G characterises Thompson-Gibbs effect
    // const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
@@ -1049,7 +1049,7 @@
    // const double We     = 1.000000e+00; // Weber number
    // const double Re     = 7.503584e+01; // Reynolds number
    // const double Pe     = 1.010063e+03; // Peclet number
- 
+
    // exp parameters
    // const double G      = 1.159722e+06; // 1/G characterises Thompson-Gibbs effect
    // const double Pi_T   = 1.452778e+04; // sensible heat / surface tension (AC/CH)
@@ -1058,11 +1058,11 @@
    // const double We     = 1.000000e+00; // Weber number
    // const double Re     = 7.503584e+01; // Reynolds number
    // const double Pe     = 1.010063e+03; // Peclet number
- 
+
    const double one_over_Pe = 1.0/Pe;
    const double one_over_Pi_T = 1.0 / Pi_T;
    const double one_over_Re = 1.0/Re;
-   const double one_over_We = 1./ We; 
+   const double one_over_We = 1./ We;
    const double one_over_Ste = 1.0 / Ste;
    const double one_over_Pi_eta = 1.0 / Pi_eta;
    void print_dimensionless_groups()
@@ -1075,24 +1075,24 @@
      << " We: "<< We << std::endl
      << " Re: "<< Re << std::endl
      << " Pe: "<< Pe << std::endl;
- 
+
    }
  } // namespace DimensionlessGroups
- 
+
  template <int dim>
  class StokesProblem
  {
  public:
      StokesProblem(unsigned int velocity_degree, const TestCase & testcase);
- 
+
      void run();
      void test_adaptive_refinement();
- 
+
  private:
  #ifdef USE_DIRECT_SOLVER
    #ifdef USE_UMFPACK
      using VectorType = Vector<double>;
-     using MatrixType = SparseMatrix<double>;    
+     using MatrixType = SparseMatrix<double>;
    #else
      using VectorType = LA::MPI::Vector;
      using MatrixType = LA::MPI::SparseMatrix;
@@ -1119,37 +1119,39 @@
      void refine_grid();
      void output_results(const unsigned int cycle) const;
      void print_variables() const;
- 
+     void reset_aux_q(VectorType &solution);
+
+
      std::vector<const FiniteElement<dim> *>
      create_fe_list(const unsigned int velocity_degree);
- 
+
      std::vector<unsigned int> create_fe_multiplicities();
- 
+
      void
      save_checkpoint(const unsigned int step_number, const double runtime);
      void
      load_checkpoint(unsigned int &step_number, double &runtime);
      double compute_mass() const;
      void write_mass(std::ofstream &mass_file, const double mass) const;
- 
- 
+
+
      const unsigned int velocity_degree;
      const unsigned int quadrature_degree;
- 
+
      MPI_Comm     mpi_communicator;
- 
+
      FESystem<dim>                             fe;
      parallel::distributed::Triangulation<dim> triangulation;
      DoFHandler<dim>                           dof_handler;
- 
+
      std::vector<IndexSet> block_owned_partitioning;
      std::vector<IndexSet> block_relevant_partitioning;
- 
+
      IndexSet locally_relevant_dofs;
- 
+
      AffineConstraints<double> constraints_newton_update;
      AffineConstraints<double> constraints_boundary;
- 
+
      MatrixType system_matrix;
      MatrixType preconditioner_matrix;
      VectorType       locally_relevant_solution; //u_n+1
@@ -1158,21 +1160,21 @@
      VectorType       current_solution; //u_*
      VectorType       system_rhs;
      VectorType       newton_update;
- 
+
      ConditionalOStream pcout;
      TimerOutput        computing_timer;
- 
+
      const ComponentIndices<dim> component_ids;
      const Extractors<dim> extractors;
- 
+
      const double eps;
- 
+
      const TestCase test_case;
- 
+
      const unsigned n_refinement;
- 
+
      double theta = 1.;
- 
+
      const double density_l, density_s, density_g;
      const double product_density_g_c_g;  // experiment: rho_g*c_g
      const double inv_density_s, inv_density_l, inv_density_g;
@@ -1188,36 +1190,36 @@
      const double k_s;
      const double k_g;
      const double initial_temperature; //Ta
-     const double boundary_temperature; 
+     const double boundary_temperature;
      const double ambient_pressure;
- 
+
      const MappingQ<dim> mapping;
- 
+
      double hmin;
- 
+
      const unsigned int wall_boundary_id = 11;
- 
+
      const double static_contact_angle; // theta_s
      const double one_over_wall_relaxation_gamma;
      const Tensor<1,dim> wall_velocity;
      const bool use_adaptive_refinement;
- 
+
      const double min_mesh_size;
-     const double max_mesh_size;   
- 
+     const double max_mesh_size;
+
      std::string output_dir;
      std::string checkpoints_dir;
- 
+
      bool relax_phase_field = false;
- 
+
      unsigned int step_number = 0;
      double       runtime     = 0.;
- 
+
      SimpliedModelParameters simplified_model_parameters;
- 
-     
+
+
  };
- 
+
  #ifdef USE_SIMPLIFIED_MODEL
  template <int dim>
  std::vector<const FiniteElement<dim> *>
@@ -1225,13 +1227,13 @@
    const unsigned int velocity_degree)
  {
    std::vector<const FiniteElement<dim> *> fe_list;
- 
+
    fe_list.push_back(new FE_Q<dim>(velocity_degree)); //phi_ch
    fe_list.push_back(new FE_Q<dim>(velocity_degree)); //mu_phi_ch
    fe_list.push_back(new FE_Q<dim>(velocity_degree)); //phi_ac
    fe_list.push_back(new FE_Q<dim>(velocity_degree)); //mu_phi_ch
    fe_list.push_back(new FE_Q<dim>(velocity_degree)); //aux q
- 
+
    return fe_list;
  }
  #else
@@ -1241,7 +1243,7 @@
    const unsigned int velocity_degree)
  {
    std::vector<const FiniteElement<dim> *> fe_list;
- 
+
    fe_list.push_back(
      new FE_Q<dim>(velocity_degree)); //(dim) fluid velocity
    fe_list.push_back(new FE_Q<dim>(velocity_degree - 1)); //(1)   pressure P
@@ -1251,7 +1253,7 @@
    fe_list.push_back(new FE_Q<dim>(velocity_degree)); //phi_ac
    fe_list.push_back(new FE_Q<dim>(velocity_degree)); //mu_phi_ch
    fe_list.push_back(new FE_Q<dim>(velocity_degree)); //aux q
- 
+
    return fe_list;
  }
  #endif
@@ -1266,10 +1268,10 @@
    multiplicities.push_back(1);
    multiplicities.push_back(1);
    multiplicities.push_back(1);
- 
+
    return multiplicities;
  }
- 
+
  template <int dim>
  StokesProblem<dim>::StokesProblem(unsigned int    velocity_degree,
                                    const TestCase &testcase)
@@ -1293,14 +1295,14 @@
    , eps(0.02)
    , test_case(testcase)
    , n_refinement(7)
-   , density_l(1.)  
+   , density_l(1.)
    , density_s(density_l)
    , density_g(density_l)
    , product_density_g_c_g(3.106963e-04)
    , inv_density_s(1. / density_s)
    , inv_density_l(1. / density_l)
    , inv_density_g(1. / density_g)
-   , present_timestep(1.5e-3)
+   , present_timestep(0.5e-3)
    , old_timestep(present_timestep)
    , fix_timestep(present_timestep)
    , cl(1.)
@@ -1315,9 +1317,9 @@
    , lambda_phi(eps)
    , lambda_psi(eps)
  #else
- 
+
    , lambda_phi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_phi_ch, eps, 0.0115298)) // surface tension formula is changed, need to compute the factor.
-   , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
+   , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/
    #endif
    , mobility_phi(1e-4)
    , mobility_psi(1.)
@@ -1326,7 +1328,7 @@
    , k_l(1.) //  thermal_conductivity(1.)
    , k_s(1)
    , k_g(1)
-//   , initial_temperature(simplified_model_parameters.const_temperature)  
+//   , initial_temperature(simplified_model_parameters.const_temperature)
    , initial_temperature(SimpliedModelParameters::const_temperature)
    , boundary_temperature(melting_t-2.)
    , ambient_pressure(0.)
@@ -1341,9 +1343,9 @@
    print_variables();
    DimensionlessGroups::print_dimensionless_groups();
  }
- 
+
  template <int dim>
- void StokesProblem<dim>:: create_coarse_grid(parallel::distributed::Triangulation<dim> &coarse_grid) const 
+ void StokesProblem<dim>:: create_coarse_grid(parallel::distributed::Triangulation<dim> &coarse_grid) const
  {
    switch  (test_case)
      {
@@ -1362,10 +1364,10 @@
          AssertDimension(dim, 2);
          const Point<dim> p0;
          const Point<dim> p1 = Point<dim>(2., 1./4.);
- 
-         std::vector< unsigned int > repetitions(dim,1); 
+
+         std::vector< unsigned int > repetitions(dim,1);
          repetitions[0] = 8;
- 
+
          const bool   colorize = true;
          GridGenerator::subdivided_hyper_rectangle(
            coarse_grid, repetitions, p0, p1, colorize);
@@ -1383,22 +1385,22 @@
          // // note that some boundary ids are not saved in the checkpoints.
          // set_boundary_ids();
          break;
-       }      
+       }
      default:
        Assert(false, ExcNotImplemented("Setting up iniital grid: Please choose the right test case"));
-     }  
+     }
      coarse_grid.signals.post_refinement.connect(
      [this, &coarse_grid]()
      {
        this->set_boundary_ids(coarse_grid);
      });
  }
- 
+
  template <int dim>
  void StokesProblem<dim>::make_grid()
  {
    create_coarse_grid(triangulation);
- 
+
    switch  (test_case)
      {
      case TestCase::test1: {
@@ -1408,12 +1410,12 @@
  //            The indicators for the surfaces in y-direction are 2 and 3,
  //            the ones for z are 4 and 5.
          triangulation.refine_global(n_refinement);
- 
+
          break;
        }
      case TestCase::test2: {
          AssertDimension(dim, 2);
- 
+
          if(use_adaptive_refinement)
            triangulation.refine_global(3);
          else
@@ -1421,18 +1423,18 @@
          break;
        }
      case TestCase::test3: {
- 
+
          if(use_adaptive_refinement)
            triangulation.refine_global(3);
          else
            triangulation.refine_global(n_refinement);
- 
+
          break;
-       }      
+       }
      default:
        Assert(false, ExcNotImplemented("Setting up iniital grid: Please choose the right test case"));
      }
-                                          
+
    const unsigned int max_refinement_level = n_refinement;
    if (use_adaptive_refinement)
      {
@@ -1440,7 +1442,7 @@
          {
            // dof_handler is required to apply initial condition
            dof_handler.distribute_dofs(fe);
- 
+
            { // make hanging node constraints, used in setting up initial
              // condition
              constraints_boundary.clear();
@@ -1448,7 +1450,7 @@
                                                      constraints_boundary);
              constraints_boundary.close();
            }
- 
+
            // initialize the solution vector
            locally_relevant_dofs.clear();
            DoFTools::extract_locally_relevant_dofs(dof_handler,
@@ -1457,7 +1459,7 @@
                                             locally_relevant_dofs,
                                             mpi_communicator);
            setup_initial_condition();
- 
+
            const bool refine_mesh_local =
              label_mesh<dim, VectorType>(dof_handler,
                                          fe,
@@ -1467,14 +1469,14 @@
                                          0,
                                          n_refinement,
                                          extractors);
- 
+
            const bool refine_mesh =
              Utilities::MPI::logical_or(refine_mesh_local, mpi_communicator);
- 
+
            if (refine_mesh)
              {
                triangulation.execute_coarsening_and_refinement();
- 
+
                pcout << "   Refinement level: " << i << std::endl
                          << "   Number of active cells: "
                          << triangulation.n_active_cells() << std::endl
@@ -1491,12 +1493,12 @@
              }
          }
      }
- 
+
    print_mesh_info(triangulation);
    hmin = GridTools::minimal_cell_diameter(triangulation, mapping)/std::sqrt(dim*1.);
    pcout<<" hmin = "<<hmin<<std::endl;
  }
- 
+
  template <int dim>
  void StokesProblem<dim>::
  set_boundary_ids(parallel::distributed::Triangulation<dim> &coarse_grid) const
@@ -1516,13 +1518,13 @@
                if(cell->face(f)->boundary_id() == 2)
                  cell->face(f)->set_all_boundary_ids(wall_boundary_id);
          break;
-       }      
+       }
      default:
        Assert(false, ExcNotImplemented("Setting up iniital grid: Please choose the right test case"));
-     }  
- 
+     }
+
  }
- 
+
  template <int dim>
  void StokesProblem<dim>::setup_initial_condition()
  {
@@ -1539,15 +1541,15 @@
    pcout << "temperature T at time_0= " << initial_temperature << std::endl;
    InitialConditions::InitialValues<dim> initial_values(
      eps, initial_temperature, melting_t, test_case, extractors, lambda_phi, lambda_psi, latent_heat);
- 
+
    switch (test_case)
      {
      case TestCase::test1: {
-       
+
          break;
        }
      case TestCase::test2: {
-       
+
          break;
        }
      case TestCase::test3: {
@@ -1559,13 +1561,13 @@
      default:
        Assert(false, ExcNotImplemented("Setting up iniital condition: Please choose the right test case"));
      }
- 
+
    VectorTools::interpolate(dof_handler,
                             initial_values,
                             tmp_initial_sol);
- 
+
    constraints_boundary.distribute(tmp_initial_sol);
- 
+
    locally_relevant_solution = tmp_initial_sol;
    old_solution = locally_relevant_solution;
    old_old_solution = locally_relevant_solution;
@@ -1573,7 +1575,50 @@
    //print the two norm of current_solution
   //  pcout << "   two norm: " << current_solution.l2_norm() << std::endl;
  }
- 
+
+template <int dim>
+void StokesProblem<dim>::reset_aux_q(VectorType &solution)
+{
+  const auto &unit_support_points = fe.base_element(component_ids.phi_ch).get_unit_support_points();
+  const Quadrature<dim> supporting_quadrature(unit_support_points);
+
+  FEValues<dim> fe_values(mapping,
+                          fe,
+                          supporting_quadrature,
+                          update_values);
+
+  const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+  AssertDimension(dofs_per_cell, unit_support_points.size());
+
+  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+  for (const auto &cell : dof_handler.active_cell_iterators())
+    if (cell->is_locally_owned())
+    {
+      fe_values.reinit(cell);
+      cell->get_dof_indices(local_dof_indices);
+
+      for (unsigned int i = 0; i < dofs_per_cell; ++i)
+      {
+        const double phi_value = fe_values[extractors.phi_ch].value(i, 0);
+        const double psi_value = fe_values[extractors.psi_ac].value(i, 0);
+
+        double q_reset = std::sqrt(InlineFunctions::F(phi_value,
+                                                      psi_value,
+                                                      eps,
+                                                      lambda_phi,
+                                                      lambda_psi,
+                                                      latent_heat,
+                                                      initial_temperature,
+                                                      melting_t) +
+                                   SimpliedModelParameters::aux_c);
+
+        solution(local_dof_indices[component_ids.aux_q]) = q_reset;
+      }
+    }
+}
+
+
  template <int dim>
  void StokesProblem<dim>::make_boundary_constraints()
  {
@@ -1585,7 +1630,7 @@
    switch  (test_case)
      {
      case TestCase::test1: {
- 
+
          ComponentMask vel_v_masked(fe.n_components(), false);
          vel_v_masked.set(extractors.velocities.first_vector_component, true);
          {
@@ -1599,15 +1644,15 @@
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_boundary,
                                                     vel_u_masked);
- 
+
            VectorTools::interpolate_boundary_values(dof_handler,
                                                     bc_id,
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_newton_update,
                                                     vel_u_masked);
          }
-     
- 
+
+
          {
            // x=y, boundary id=2, velocity (u,v,w)
            // v = 0
@@ -1619,26 +1664,26 @@
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_boundary,
                                                     vel_v_masked);
- 
+
            VectorTools::interpolate_boundary_values(dof_handler,
                                                     bc_id,
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_newton_update,
                                                     vel_v_masked);
          }
- 
+
          {
            // T = Ta
            const auto               const_function =
              Functions::ConstantFunction<dim>(initial_temperature, fe.n_components());
            const auto               zero_function =
              Functions::ZeroFunction<dim>(fe.n_components());
-           
+
            const std::map<types::boundary_id, const Function<dim> *>
              zero_function_map = {{1, &zero_function}, {3, &zero_function}};
            const std::map<types::boundary_id, const Function<dim> *>
-             const_function_map = {{1, &const_function}, {3, &const_function}};            
- 
+             const_function_map = {{1, &const_function}, {3, &const_function}};
+
            ComponentMask temperature_masked(fe.n_components(), false);
            temperature_masked.set(extractors.temperature.component, true);
            VectorTools::interpolate_boundary_values(mapping,
@@ -1646,18 +1691,18 @@
                                                     const_function_map,
                                                     constraints_boundary,
                                                     temperature_masked);
- 
+
            VectorTools::interpolate_boundary_values(mapping,
                                                     dof_handler,
                                                     zero_function_map,
                                                     constraints_newton_update,
                                                     temperature_masked);
          }
- 
+
          break;
        }
        case TestCase::test2: {
- 
+
          // const double alpha =
          //   InitialConditions::InitialValues<dim>(
          //     eps, initial_temperature, melting_t, test_case, extractors)
@@ -1666,13 +1711,13 @@
            // x=0, boundary id=0,
            // velocity (u,v,w) = 0 at id = 0
            // T = (1-alpha) * TM at x=0, bc id = 0
- 
+
            const types::boundary_id bc_id = 0;
            ComponentMask            vel_masked(fe.n_components(), false);
            for (unsigned int d = 0; d < dim; ++d)
              vel_masked.set(extractors.velocities.first_vector_component + d,
                             true);
- 
+
            VectorTools::interpolate_boundary_values(mapping,
                                                     dof_handler,
                                                     bc_id,
@@ -1680,7 +1725,7 @@
                                                       fe.n_components()),
                                                     constraints_boundary,
                                                     vel_masked);
- 
+
            VectorTools::interpolate_boundary_values(mapping,
                                                     dof_handler,
                                                     bc_id,
@@ -1688,12 +1733,12 @@
                                                       fe.n_components()),
                                                     constraints_newton_update,
                                                     vel_masked);
- 
+
            // temperature constraints
            ComponentMask temperature_masked(fe.n_components(), false);
            temperature_masked.set(extractors.temperature.component, true);
            const double t_alpha = 0.9 * melting_t;
- 
+
            VectorTools::interpolate_boundary_values(
              mapping,
              dof_handler,
@@ -1701,7 +1746,7 @@
              Functions::ConstantFunction<dim>(t_alpha, fe.n_components()),
              constraints_boundary,
              temperature_masked);
- 
+
            VectorTools::interpolate_boundary_values(mapping,
                                                     dof_handler,
                                                     bc_id,
@@ -1710,16 +1755,16 @@
                                                     constraints_newton_update,
                                                     temperature_masked);
          }
- 
+
          {
-           // x=2, boundary id= 1, 
+           // x=2, boundary id= 1,
            // v = 0 at id = 1
            // T = (1+alpha) * TM at x=2, bc id = 1
            const types::boundary_id bc_id = 1;
            ComponentMask            vel_v_masked(fe.n_components(), false);
              vel_v_masked.set(extractors.velocities.first_vector_component + 1,
                             true);
- 
+
            VectorTools::interpolate_boundary_values(mapping,
                                                     dof_handler,
                                                     bc_id,
@@ -1727,7 +1772,7 @@
                                                       fe.n_components()),
                                                     constraints_boundary,
                                                     vel_v_masked);
- 
+
            VectorTools::interpolate_boundary_values(mapping,
                                                     dof_handler,
                                                     bc_id,
@@ -1735,12 +1780,12 @@
                                                       fe.n_components()),
                                                     constraints_newton_update,
                                                     vel_v_masked);
- 
+
            // temperature constraints
            ComponentMask temperature_masked(fe.n_components(), false);
            temperature_masked.set(extractors.temperature.component, true);
            const double t_alpha = melting_t;
- 
+
            VectorTools::interpolate_boundary_values(
              mapping,
              dof_handler,
@@ -1748,16 +1793,16 @@
              Functions::ConstantFunction<dim>(t_alpha, fe.n_components()),
              constraints_boundary,
              temperature_masked);
- 
+
            VectorTools::interpolate_boundary_values(mapping,
                                                     dof_handler,
                                                     bc_id,
                                                     Functions::ZeroFunction<dim>(
                                                       fe.n_components()),
                                                     constraints_newton_update,
-                                                    temperature_masked);          
+                                                    temperature_masked);
          }
- 
+
          {
            // y = 0,1, boundary id = 2, 3
            // v = 0, both
@@ -1781,11 +1826,11 @@
                                                     constraints_newton_update,
                                                     vel_v_masked);
          }
- 
+
          break;
        }
      case TestCase::test3: {
- 
+
          ComponentMask vel_v_masked(fe.n_components(), false);
          vel_v_masked.set(extractors.velocities.first_vector_component, true);
          {
@@ -1799,14 +1844,14 @@
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_boundary,
                                                     vel_u_masked);
- 
+
            VectorTools::interpolate_boundary_values(dof_handler,
                                                     bc_id,
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_newton_update,
                                                     vel_u_masked);
          }
- 
+
          {
            // y=0, boundary id=2, velocity (u,v,w)
            // velocity = 0
@@ -1818,19 +1863,19 @@
            for(unsigned int d = 0; d < dim; ++d)
              vel_masked.set(extractors.velocities.first_vector_component + d,
                             true);
-           
+
            VectorTools::interpolate_boundary_values(dof_handler,
                                                     bc_id,
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_boundary,
                                                     vel_masked);
- 
+
            VectorTools::interpolate_boundary_values(dof_handler,
                                                     bc_id,
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_newton_update,
                                                     vel_masked);
- 
+
            ComponentMask temperature_masked(fe.n_components(), false);
            temperature_masked.set(extractors.temperature.component, true);
            VectorTools::interpolate_boundary_values(mapping,
@@ -1841,23 +1886,23 @@
                                                        fe.n_components()),
                                                     constraints_boundary,
                                                     temperature_masked);
-                                                              
- 
+
+
            VectorTools::interpolate_boundary_values(mapping,
                                                     dof_handler,
                                                     bc_id,
                                                      Functions::ZeroFunction<dim>(
                                                        fe.n_components()),
                                                     constraints_newton_update,
-                                                    temperature_masked);                                                   
+                                                    temperature_masked);
          }
- 
+
           {
            //boundary id=1, 3
            const types::boundary_id bc_id= 1;
            // zero shear stress and zero heat flux (both embedded in the weak form)
            // when solving CH + NS, we observe larege velocity on the boundary 1,
-           // so use slip condition. 
+           // so use slip condition.
            ComponentMask vel_u_masked(fe.n_components(), false);
            vel_u_masked.set(extractors.velocities.first_vector_component, true);
            VectorTools::interpolate_boundary_values(dof_handler,
@@ -1865,12 +1910,12 @@
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_boundary,
                                                     vel_u_masked);
- 
+
            VectorTools::interpolate_boundary_values(dof_handler,
                                                     bc_id,
                                                     Functions::ZeroFunction<dim>(fe.n_components()),
                                                     constraints_newton_update,
-                                                    vel_u_masked);          
+                                                    vel_u_masked);
          }
          break;
        }
@@ -1936,7 +1981,7 @@
          coupling[c][d] = DoFTools::always;
        else
          coupling[c][d] = DoFTools::none;
- 
+
    bool print_pattern = true;
    if (print_pattern)
      {
@@ -1956,47 +2001,47 @@
        if(mpi_rank == 0)
          cell_coupling_mat.print(std::cout);
      }
- 
+
    return coupling;
  }
  #endif
- 
+
  template <int dim>
  void StokesProblem<dim>::setup_block_system()
  {
  #ifndef USE_DIRECT_SOLVER
      TimerOutput::Scope t(computing_timer, "setup");
- 
+
      dof_handler.distribute_dofs(fe);
- 
+
      const unsigned int n_components = fe.n_components();
- 
+
      std::vector<unsigned int> sub_blocks(n_components, 0);
- 
+
      sub_blocks[dim] = 1;
- 
+
      for(auto i=0u; i<n_components - (dim + 1); ++i)
        sub_blocks[i+dim+1] = i + 2;
- 
+
      for(auto i : sub_blocks)
        pcout<<" block: "<<i<<std::endl;
- 
+
      const unsigned int n_blocks = sub_blocks[n_components - 1] + 1;
- 
+
      pcout<<" n blocks: "<<n_blocks<<std::endl;
- 
+
      DoFRenumbering::component_wise(dof_handler, sub_blocks);
- 
+
      const std::vector<types::global_dof_index> dofs_per_block =
          DoFTools::count_dofs_per_fe_block(dof_handler, sub_blocks);
- 
+
      pcout << "   Number of degrees of freedom: " << dof_handler.n_dofs() << " (";
      for(auto i:dofs_per_block)
        pcout<< i <<"  "  ;
      pcout << ")"<< std::endl;
- 
+
      block_owned_partitioning.resize(n_blocks);
- 
+
      unsigned int block_starting_id = 0;
      for(unsigned int i=0; i<n_blocks; ++i)
        {
@@ -2006,11 +2051,11 @@
          block_starting_id += dofs_per_block[i];
          pcout<<" owned partitioning size ( "<<i<<" ): "<<block_owned_partitioning[i].size()<<std::endl;
        }
- 
+
      locally_relevant_dofs.clear();
      DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
      block_relevant_partitioning.resize(n_blocks);
- 
+
      block_starting_id = 0;
      for(unsigned int i=0; i<n_blocks; ++i)
        {
@@ -2019,31 +2064,31 @@
          block_starting_id += dofs_per_block[i];
  //        pcout<<" relevant partitioning size ( "<<i<<" ): "<<block_relevant_partitioning[i].size()<<std::endl;
        }
- 
+
      make_boundary_constraints();
- 
- 
+
+
      {
          system_matrix.clear();
- 
+
          const Table<2, DoFTools::Coupling> coupling = make_coupling();
- 
+
          BlockDynamicSparsityPattern dsp(dofs_per_block, dofs_per_block);
- 
+
          DoFTools::make_sparsity_pattern(
              dof_handler, coupling, dsp, constraints_newton_update, false);
- 
+
          SparsityTools::distribute_sparsity_pattern(
              dsp,
              dof_handler.locally_owned_dofs(),
              mpi_communicator,
              locally_relevant_dofs);
- 
+
  //        std::cout<<" rows size: "<<block_owned_partitioning.size()
  //                << " n block rows: "<<dsp.n_block_rows()<<std::endl;
          system_matrix.reinit(block_owned_partitioning, dsp, mpi_communicator);
      }
- 
+
      locally_relevant_solution.reinit(block_owned_partitioning,
                                       block_relevant_partitioning,
                                       mpi_communicator);
@@ -2058,31 +2103,31 @@
      newton_update.reinit(block_owned_partitioning, mpi_communicator);
  #endif
  }
- 
- 
+
+
  template <int dim>
  void StokesProblem<dim>::setup_system()
  {
  #ifdef USE_DIRECT_SOLVER
      TimerOutput::Scope t(computing_timer, "setup");
- 
+
      dof_handler.distribute_dofs(fe);
      pcout<<" dofs: "<<dof_handler.n_dofs()<<std::endl;
- 
+
  //    const unsigned int n_components = fe.n_components();
- 
+
  //    std::vector<unsigned int> sub_blocks(n_components, 0);
- 
+
  //    sub_blocks[dim] = 1;
- 
+
  //    for(auto i=0u; i<n_components - (dim + 1); ++i)
  //      sub_blocks[i+dim+1] = i + 2;
- 
+
  //    for(auto i : sub_blocks)
  //      pcout<<" block: "<<i<<std::endl;
- 
+
  //    const unsigned int n_blocks = sub_blocks[n_components - 1] + 1;
- 
+
  //    pcout<<" n blocks: "<<n_blocks<<std::endl;
      {
        TimerOutput::Scope t(computing_timer, "renumbering");
@@ -2090,38 +2135,38 @@
        DoFRenumbering::hierarchical(dof_handler);
        DoFRenumbering::Cuthill_McKee(dof_handler);
      }
- 
+
      locally_relevant_dofs.clear();
      DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
- 
+
      IndexSet locally_owned_dofs = dof_handler.locally_owned_dofs();
- 
+
      make_boundary_constraints();
- 
- 
+
+
      {
        system_matrix.clear();
  #  ifndef USE_SIMPLIFIED_MODEL
        const Table<2, DoFTools::Coupling> coupling = make_coupling();
        DynamicSparsityPattern dsp(dof_handler.n_dofs(), dof_handler.n_dofs());
- 
+
        DoFTools::make_sparsity_pattern(
          dof_handler, coupling, dsp, constraints_newton_update, false);
  #  else
        DynamicSparsityPattern dsp(dof_handler.n_dofs(), dof_handler.n_dofs());
- 
+
        DoFTools::make_sparsity_pattern(dof_handler,
                                        dsp,
                                        constraints_newton_update,
                                        false);
  #  endif
- 
- 
+
+
        SparsityTools::distribute_sparsity_pattern(dsp,
                                                   locally_owned_dofs,
                                                   mpi_communicator,
                                                   locally_relevant_dofs);
- 
+
        //        std::cout<<" rows size: "<<block_owned_partitioning.size()
        //                << " n block rows: "<<dsp.n_block_rows()<<std::endl;
        system_matrix.reinit(locally_owned_dofs,
@@ -2129,63 +2174,63 @@
                             dsp,
                             mpi_communicator);
      }
- 
+
      locally_relevant_solution.reinit(locally_owned_dofs,
                                       locally_relevant_dofs,
                                       mpi_communicator);
      old_solution.reinit(locally_relevant_solution);
      old_old_solution.reinit(old_solution);
      current_solution.reinit(locally_relevant_solution);
- 
+
      system_rhs.reinit(locally_owned_dofs, mpi_communicator);
      newton_update.reinit(system_rhs);
  #endif
  }
- 
+
  #ifndef USE_SIMPLIFIED_MODEL
  template <int dim>
  void StokesProblem<dim>::assemble_system(const bool assemble_matrix)
  {
      TimerOutput::Scope t(computing_timer, "assembly");
      Timer timer(mpi_communicator);
- 
- 
+
+
      pcout<<" assemble system... "<<std::flush;
- 
+
      system_matrix         = 0;
  //    preconditioner_matrix = 0;
      system_rhs            = 0;
- 
+
      SymmetricTensor<2, dim> id_tensor;
      for (unsigned int d = 0; d < dim; ++d)
        id_tensor[d][d] = 1.;
- 
+
      const double         ext_c2 = theta * present_timestep / old_timestep;
      const double         ext_c1 = ext_c2 + 1;
- 
+
      // todo: check if it's accurate enough
      const QGauss<dim> quadrature_formula(quadrature_degree);
      const QGauss<dim-1> face_quadrature_formula(quadrature_degree);
- 
+
      FEValues<dim> fe_values(fe,
                              quadrature_formula,
                              update_values | update_gradients |
                              update_quadrature_points | update_JxW_values);
- 
+
      FEFaceValues<dim> fe_face_values(fe,
                                   face_quadrature_formula,
                                   update_values | update_quadrature_points |
                                    update_normal_vectors | update_JxW_values |
                                    update_gradients);
- 
+
      const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
      const unsigned int n_q_points    = quadrature_formula.size();
      const unsigned int n_face_q_points = face_quadrature_formula.size();
- 
+
      FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
  //    FullMatrix<double> cell_matrix2(dofs_per_cell, dofs_per_cell);
      Vector<double>     cell_rhs(dofs_per_cell);
- 
+
      std::vector<double>         phi_ch_star(n_q_points);
      std::vector<double>         phi_ch_n(n_q_points);
      std::vector<double>         psi_ac_star(n_q_points);
@@ -2193,28 +2238,28 @@
      std::vector<double>         mu_phi_ch_star(n_q_points);
      std::vector<double>         mu_psi_ac_star(n_q_points);
      std::vector<double>         mu_psi_ac_n(n_q_points);
- 
+
      std::vector<Tensor<1,dim>>  grad_phi_ch_star(n_q_points);
      std::vector<Tensor<1,dim>>  grad_phi_ch_n(n_q_points);
      std::vector<Tensor<1,dim>>  grad_psi_ac_star(n_q_points);
      std::vector<Tensor<1,dim>>  grad_psi_ac_n(n_q_points);
      std::vector<Tensor<1,dim>>  grad_mu_phi_ch_star(n_q_points);
      std::vector<Tensor<1,dim>>  grad_mu_psi_ac_star(n_q_points);
- 
+
      std::vector<Tensor<1,dim>>  vel_star(n_q_points);
      std::vector<Tensor<1,dim>>  vel_n(n_q_points);
      std::vector<Tensor<1,dim>>  vel_n_minus_1(n_q_points);
      std::vector<Tensor<2,dim>>  grad_vel_star(n_q_points);
      std::vector<Tensor<2,dim>>  grad_vel_n(n_q_points);
      std::vector<Tensor<2,dim>>  grad_vel_n_minus_1(n_q_points);
- 
+
      std::vector<double>         temperature_star(n_q_points);
      std::vector<double>         temperature_n(n_q_points);
      std::vector<Tensor<1,dim>>  grad_temperature_star(n_q_points);
      std::vector<Tensor<1,dim>>  grad_temperature_n(n_q_points);
- 
+
      std::vector<double>         pressure_star(n_q_points);
- 
+
      // shape functions:
      std::vector<double> shape_phi_ch(dofs_per_cell);
      std::vector<double> shape_psi_ac(dofs_per_cell);
@@ -2222,49 +2267,49 @@
      std::vector<double> shape_psi_ac_theta(dofs_per_cell);
      std::vector<double> shape_mu_phi_ch(dofs_per_cell);
      std::vector<double> shape_mu_psi_ac(dofs_per_cell);
- 
+
      std::vector<Tensor<1,dim>> grad_shape_phi_ch(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_phi_ch_theta(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_psi_ac(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_psi_ac_theta(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_mu_phi_ch(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_mu_psi_ac(dofs_per_cell);
- 
+
      std::vector<double> shape_inv_rho_theta(dofs_per_cell);
      std::vector<double> shape_inv_rho_partial_phi_theta(dofs_per_cell);
      std::vector<double> shape_inv_rho_partial_psi_theta(dofs_per_cell);
      std::vector<double> shape_rho_theta(dofs_per_cell);
- 
+
      // delta H_theta_star
      std::vector<double> shape_h_ts(dofs_per_cell);
      // delta grad_inv_rho_theta
      std::vector<Tensor<1,dim>> grad_shape_inv_rho_theta(dofs_per_cell);
- 
+
      std::vector<Tensor<2, dim>> grad_shape_vel(dofs_per_cell);
      std::vector<Tensor<1, dim>> shape_vel(dofs_per_cell);
      std::vector<double>         shape_div_vel(dofs_per_cell);
      std::vector<double>         shape_pressure(dofs_per_cell);
      std::vector<Tensor<1, dim>> shape_vel_theta(dofs_per_cell);
- 
+
      std::vector<double>         shape_c_theta(dofs_per_cell);
      std::vector<double>         shape_c_partial_phi_theta(dofs_per_cell);
      std::vector<double>         shape_c_partial_psi_theta(dofs_per_cell);
- 
+
      std::vector<double>         shape_eta_theta(dofs_per_cell);
- 
+
      std::vector<Tensor<2,dim>>  shape_e_theta(dofs_per_cell);
- 
+
      std::vector<Tensor<2,dim>>  shape_gamma_theta(dofs_per_cell);
- 
+
      std::vector<double> shape_pressure_reformulated_term(dofs_per_cell);
- 
+
      std::vector<double>         shape_temperature(dofs_per_cell);
      std::vector<double>         shape_temperature_theta(dofs_per_cell);
      std::vector<Tensor<1,dim>>  grad_shape_temperature(dofs_per_cell);
      std::vector<Tensor<1,dim>>  grad_shape_temperature_theta(dofs_per_cell);
- 
+
      std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
- 
+
      double mat, rhs;
      for (const auto &cell : dof_handler.active_cell_iterators())
          if (cell->is_locally_owned())
@@ -2273,66 +2318,66 @@
              cell_matrix  = 0;
  //            cell_matrix2 = 0;
              cell_rhs     = 0;
- 
+
              fe_values.reinit(cell);
              fe_values[extractors.phi_ch].get_function_values(current_solution, phi_ch_star);
              fe_values[extractors.phi_ch].get_function_values(old_solution, phi_ch_n);
              fe_values[extractors.phi_ch].get_function_gradients(current_solution, grad_phi_ch_star);
              fe_values[extractors.phi_ch].get_function_gradients(old_solution, grad_phi_ch_n);
- 
+
              fe_values[extractors.psi_ac].get_function_values(current_solution, psi_ac_star);
              fe_values[extractors.psi_ac].get_function_values(old_solution, psi_ac_n);
              fe_values[extractors.psi_ac].get_function_gradients(current_solution, grad_psi_ac_star);
              fe_values[extractors.psi_ac].get_function_gradients(old_solution, grad_psi_ac_n);
- 
+
              fe_values[extractors.mu_phi_ch].get_function_values(current_solution, mu_phi_ch_star);
              fe_values[extractors.mu_phi_ch].get_function_gradients(current_solution, grad_mu_phi_ch_star);
- 
+
              fe_values[extractors.mu_psi_ac].get_function_values(current_solution, mu_psi_ac_star);
              fe_values[extractors.mu_psi_ac].get_function_gradients(current_solution, grad_mu_psi_ac_star);
- 
+
              fe_values[extractors.velocities].get_function_values(current_solution, vel_star);
              fe_values[extractors.velocities].get_function_values(old_solution, vel_n);
              fe_values[extractors.velocities].get_function_values(old_old_solution, vel_n_minus_1);
              fe_values[extractors.velocities].get_function_gradients(current_solution, grad_vel_star);
              fe_values[extractors.velocities].get_function_gradients(old_solution, grad_vel_n);
              fe_values[extractors.velocities].get_function_gradients(old_old_solution, grad_vel_n_minus_1);
- 
+
              fe_values[extractors.temperature].get_function_values(current_solution, temperature_star);
              fe_values[extractors.temperature].get_function_values(old_solution, temperature_n);
              fe_values[extractors.temperature].get_function_gradients(current_solution, grad_temperature_star);
              fe_values[extractors.temperature].get_function_gradients(old_solution, grad_temperature_n);
- 
+
              fe_values[extractors.pressure].get_function_values(current_solution, pressure_star);
  #ifdef USE_AXISYMMETRY
              const auto &quadrature_points = fe_values.get_quadrature_points();
  #endif
- 
+
              for (unsigned int q = 0; q < n_q_points; ++q)
              {
                double jxwq = fe_values.JxW(q);
  #ifdef USE_AXISYMMETRY
                jxwq *= quadrature_points[q][0];
                const double one_over_r = 1.0 / quadrature_points[q][0];
-               
+
  #endif
                // ts: theta star
                const double c1           = 1.-theta;
                const double phi_ch_ts    = theta * phi_ch_star[q] + c1 * phi_ch_n[q];
                const double psi_ac_ts    = theta * psi_ac_star[q] + c1 * psi_ac_n[q];
- 
+
                const Tensor<1,dim> grad_phi_ch_ts    = theta * grad_phi_ch_star[q] + c1 * grad_phi_ch_n[q];
                const Tensor<1,dim> grad_psi_ac_ts    = theta * grad_psi_ac_star[q] + c1 * grad_psi_ac_n[q];
- 
+
                const Tensor<1,dim> vel_ts         = theta * vel_star[q] + c1 * vel_n[q];
                const Tensor<2,dim> grad_vel_ts    = theta * grad_vel_star[q] + c1 * grad_vel_n[q];
                const double div_vel_ts            = trace(grad_vel_ts);
                const Tensor<1, dim> vel_bar       = ext_c1 * vel_n[q] - ext_c2 * vel_n_minus_1[q];
                const double div_vel_bar           = ext_c1 * trace(grad_vel_n[q]) - ext_c2 * trace(grad_vel_n_minus_1[q]);
                const double temperature_ts        = theta * temperature_star[q] + c1 * temperature_n[q];
- 
+
                const Tensor<1,dim> grad_temperature_ts = theta * grad_temperature_star[q] + c1 * grad_temperature_n[q];
- 
+
                const double inv_rho_ts = InlineFunctions::f(phi_ch_ts,
                                                             psi_ac_ts,
                                                             inv_density_l,
@@ -2340,7 +2385,7 @@
                                                             inv_density_g);
                const double rho_ts = 1./ inv_rho_ts;
                const double rho_ts_square = rho_ts * rho_ts;
- 
+
                const double inv_rho_partial_phi_ch_ts =
                    InlineFunctions::f_partial_phi(phi_ch_ts,
                                                   psi_ac_ts,
@@ -2368,12 +2413,12 @@
                                                               psi_ac_ts,
                                                               inv_density_l,
                                                               inv_density_s);
- 
+
                const double rho_partial_phi_ch_ts = -rho_ts_square * inv_rho_partial_phi_ch_ts;
                const double rho_partial_psi_ac_ts = -rho_ts_square * inv_rho_partial_psi_ac_ts;
- 
+
  //              const double material_derivative_ts = ((phi_ch_star[q] - phi_ch_n[q])/present_timestep + vel_ts * grad_phi_ch_ts);
-               const double material_derivative_ts = ((phi_ch_star[q] - phi_ch_n[q])/present_timestep + vel_bar * grad_phi_ch_ts);              
+               const double material_derivative_ts = ((phi_ch_star[q] - phi_ch_n[q])/present_timestep + vel_bar * grad_phi_ch_ts);
  //              {
  //                std::cout<<" phi_ch_star: "<<phi_ch_star[q]
  //                           << " phi_ch_n: "<<phi_ch_n[q]
@@ -2381,11 +2426,11 @@
  //                              <<" vel_ts: "<< vel_ts
  //                             <<" frad_phi_ch_ts: "<<grad_phi_ch_ts<<std::endl;
  //              }
- 
+
                const double h_ts   = rho_ts * material_derivative_ts;
- 
+
                // const Tensor<1,dim> grad_inv_rho_ts = inv_rho_partial_phi_ch_ts * grad_phi_ch_ts + inv_rho_partial_psi_ac_ts * grad_psi_ac_ts;
- 
+
                const double c_ts = InlineFunctions::f(phi_ch_ts,
                                                       psi_ac_ts,
                                                       cl, cs, cg);
@@ -2404,7 +2449,7 @@
                const double c_partial_phi_partial_psi_ac_ts = InlineFunctions::f_partial_phi_partial_psi(phi_ch_ts,
                                                                                                    psi_ac_ts,
                                                                                                    cl, cs);
- 
+
                const double eta_ts = InlineFunctions::g(phi_ch_ts,
                                                         psi_ac_ts,
                                                         eta_l,
@@ -2412,7 +2457,7 @@
                                                         eta_g);
                const double eta_partial_phi_ch_ts = InlineFunctions::g_pratial_phi(psi_ac_ts, eta_l, eta_s, eta_g);
                const double eta_partial_psi_ac_ts = InlineFunctions::g_pratial_psi(phi_ch_ts, eta_l, eta_s);
- 
+
                // k: the thermal conductivity
                const double k_ts = InlineFunctions::f(phi_ch_ts,
                                                       psi_ac_ts,
@@ -2428,7 +2473,7 @@
                                                                                psi_ac_ts,
                                                                                k_l,
                                                                                k_s);
- 
+
                // E_theta_star
                const Tensor<2,dim> e_ts = grad_vel_ts + transpose(grad_vel_ts) -  2./3. * div_vel_ts * id_tensor;
  #ifndef USE_NEW_R
@@ -2451,75 +2496,75 @@
                const double artificial_diffusion_coefficient
                = InlineFunctions::new_r(0.2, r_alpha) - InlineFunctions::new_r(std::min(phi_ch_n[q], 0.2), r_alpha);
  #endif
- 
+
                const double w_psi_ac_ts = InlineFunctions::w(psi_ac_ts, eps);
                const double w_prime_psi_ac_ts = InlineFunctions::w_prime(psi_ac_ts, eps);
                const double w_prime_phi_ch_ts = InlineFunctions::w_prime(phi_ch_ts, eps);
                const double w_prime_prime_phi_ch_ts = InlineFunctions::w_prime_prime(phi_ch_ts, eps);
                const double w_prime_prime_psi_ac_ts = InlineFunctions::w_prime_prime(psi_ac_ts, eps);
- 
-               const double pressure_reformulated_term = (lambda_phi * (grad_phi_ch_ts * grad_phi_ch_ts) 
+
+               const double pressure_reformulated_term = (lambda_phi * (grad_phi_ch_ts * grad_phi_ch_ts)
                       + r_phi_ch_ts * lambda_psi * (grad_psi_ac_ts * grad_psi_ac_ts));
                const Tensor<2,dim> gamma_ts = lambda_phi * outer_product(grad_phi_ch_ts, grad_phi_ch_ts)
                    + r_phi_ch_ts * lambda_psi * outer_product(grad_psi_ac_ts, grad_psi_ac_ts)
                    - pressure_reformulated_term * id_tensor;
- 
+
                const Tensor<1,dim> D_vel_Dt_ts = (vel_star[q] - vel_n[q])/present_timestep +  grad_vel_ts * vel_bar
                    + 0.5 * div_vel_bar * vel_ts;
- 
+
  //              const double D_temperature_Dt_ts = (temperature_star[q] - temperature_n[q])/present_timestep + vel_ts * grad_temperature_ts;
                const double D_temperature_Dt_ts = (temperature_star[q] - temperature_n[q])/present_timestep + vel_bar * grad_temperature_ts;
- 
+
                const double log_t_ts_tm = std::log(temperature_ts/melting_t);
                Assert(numbers::is_finite(log_t_ts_tm), ExcMessage("log_t_ts_tm is not finite, which means temperature is negative"));
                // TM(1-T_ts/TM) + T_ts*log(T_ts/TM), used in  w3 and w5
                const double w35_reuse_term1 = melting_t * (1. - temperature_ts/melting_t) + temperature_ts * log_t_ts_tm;
                // w(phi_ch_ts) + 0.5 |grad_psi_ac_ts|^2
                const double w3_reuse_term2 = w_psi_ac_ts + 0.5 * (grad_psi_ac_ts * grad_psi_ac_ts);
- 
+
                // (psi_ac_ts - psi_ac_n)/dt + vel_ts * grad_psi_ac_ts
  //              const double D_psi_D_t_ts = (psi_ac_star[q] - psi_ac_n[q])/present_timestep + vel_ts * grad_psi_ac_ts;
                const double D_psi_D_t_ts = (psi_ac_star[q] - psi_ac_n[q])/present_timestep + vel_bar * grad_psi_ac_ts;
- 
+
                for (unsigned int k = 0; k < dofs_per_cell; ++k)
                  {
                    shape_phi_ch[k]       = fe_values[extractors.phi_ch].value(k, q);
                    shape_psi_ac[k]       = fe_values[extractors.psi_ac].value(k, q);
                    shape_phi_ch_theta[k] = theta * shape_phi_ch[k];
                    shape_psi_ac_theta[k] = theta * shape_psi_ac[k];
- 
+
                    grad_shape_phi_ch[k]       = fe_values[extractors.phi_ch].gradient(k, q);
                    grad_shape_phi_ch_theta[k] = theta * grad_shape_phi_ch[k];
                    grad_shape_psi_ac[k]       = fe_values[extractors.psi_ac].gradient(k, q);
                    grad_shape_psi_ac_theta[k] = theta * grad_shape_psi_ac[k];
- 
+
                    shape_mu_phi_ch[k]            = fe_values[extractors.mu_phi_ch].value(k, q);
                    shape_mu_psi_ac[k]            = fe_values[extractors.mu_psi_ac].value(k, q);
- 
+
                    grad_shape_mu_phi_ch[k]       = fe_values[extractors.mu_phi_ch].gradient(k, q);
                    grad_shape_mu_psi_ac[k]       = fe_values[extractors.mu_psi_ac].gradient(k, q);
- 
+
                    shape_vel[k]       = fe_values[extractors.velocities].value(k, q);
                    shape_vel_theta[k] = theta * shape_vel[k];
                    grad_shape_vel[k] = fe_values[extractors.velocities].gradient(k, q);
                    shape_div_vel[k]  = fe_values[extractors.velocities].divergence(k, q);
                    shape_pressure[k] = fe_values[extractors.pressure].value(k, q);
- 
+
                    shape_temperature[k]             = fe_values[extractors.temperature].value(k, q);
                    shape_temperature_theta[k]       = theta * shape_temperature[k];
                    grad_shape_temperature[k]        = fe_values[extractors.temperature].gradient(k, q);
                    grad_shape_temperature_theta[k]  = theta * grad_shape_temperature[k];
- 
+
                    shape_inv_rho_theta[k] = inv_rho_partial_phi_ch_ts * shape_phi_ch_theta[k]
                        + inv_rho_partial_psi_ac_ts * shape_psi_ac_theta[k];
                    shape_rho_theta[k]     = rho_partial_phi_ch_ts * shape_phi_ch_theta[k]
                        + rho_partial_psi_ac_ts * shape_psi_ac_theta[k];
- 
+
                    shape_inv_rho_partial_phi_theta[k] = inv_rho_partial2_phi2_ts * shape_phi_ch_theta[k]
                        + inv_rho_partial_phi_partial_psi * shape_psi_ac_theta[k];
                    shape_inv_rho_partial_psi_theta[k] = inv_rho_partial_phi_partial_psi * shape_phi_ch_theta[k]
                        + inv_rho_partial2_psi2_ts * shape_psi_ac_theta[k];
- 
+
                    shape_h_ts[k] = shape_rho_theta[k] * material_derivative_ts
  //                      + rho_ts * (shape_phi_ch[k]/present_timestep + shape_vel_theta[k] * grad_phi_ch_ts
  //                                  + vel_ts * grad_shape_phi_ch_theta[k]);
@@ -2528,27 +2573,27 @@
  //                    std::cout<<" shape_rho_theta: "<< shape_rho_theta[k]
  //                               << " material_derivative_ts " << material_derivative_ts
  //                               << " rho_ts " << rho_ts <<std::endl;
- 
+
  //                  }
- 
+
                    grad_shape_inv_rho_theta[k] = shape_inv_rho_partial_phi_theta[k] * grad_phi_ch_ts
                        + shape_inv_rho_partial_psi_theta[k] * grad_psi_ac_ts
                        + inv_rho_partial_phi_ch_ts * grad_shape_phi_ch_theta[k]
                        + inv_rho_partial_psi_ac_ts * grad_shape_psi_ac_theta[k];
- 
+
                    shape_c_theta[k] = c_partial_phi_ch_ts * shape_phi_ch_theta[k]
                        + c_partial_psi_ac_ts * shape_psi_ac_theta[k];
                    shape_c_partial_phi_theta[k] = c_partial2_phi2_ts * shape_phi_ch_theta[k]
                        + c_partial_phi_partial_psi_ac_ts * shape_psi_ac_theta[k];
                    shape_c_partial_psi_theta[k] = c_partial_phi_partial_psi_ac_ts * shape_phi_ch_theta[k]
                        + c_partial2_psi2_ts * shape_psi_ac_theta[k];
- 
+
                    shape_eta_theta[k] = eta_partial_phi_ch_ts * shape_phi_ch_theta[k]
                        + eta_partial_psi_ac_ts * shape_psi_ac_theta[k];
- 
+
                    shape_e_theta[k] = theta * (grad_shape_vel[k] + transpose(grad_shape_vel[k])
                                                - 2./3. * shape_div_vel[k] * id_tensor);
- 
+
                    const Tensor<2,dim> grad_phi_ch_ts_grad_shape_phi_ch_theta = outer_product(grad_phi_ch_ts, grad_shape_phi_ch_theta[k]);
                    const Tensor<2,dim> grad_psi_ac_ts_grad_shape_psi_ac_theta = outer_product(grad_psi_ac_ts, grad_shape_psi_ac_theta[k]);
                    shape_pressure_reformulated_term[k] = (2. * lambda_phi * (grad_phi_ch_ts * grad_shape_phi_ch_theta[k])
@@ -2560,7 +2605,7 @@
                                        + r_phi_ch_ts * (grad_psi_ac_ts_grad_shape_psi_ac_theta + transpose(grad_psi_ac_ts_grad_shape_psi_ac_theta)))
                        - shape_pressure_reformulated_term[k] * id_tensor;
                  }
- 
+
                for (unsigned int i = 0; i < dofs_per_cell; ++i)
                  {
                    if(assemble_matrix)
@@ -2569,7 +2614,7 @@
                          {
                            // w1,2
                            mat = shape_h_ts[j] * shape_phi_ch[i] + mobility_phi * grad_shape_mu_phi_ch[j] * grad_shape_phi_ch[i];
- 
+
                            // w3
                            //  term i
                            mat += shape_mu_phi_ch[j] * shape_mu_phi_ch[i];
@@ -2596,15 +2641,15 @@
                                // -  lambda_phi * shape_rho_theta[j] * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i]
                                // -  lambda_phi * rho_ts * (grad_shape_phi_ch_theta[j] * grad_inv_rho_ts) * shape_mu_phi_ch[i]
                                // -  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_shape_inv_rho_theta[j]) * shape_mu_phi_ch[i];
- 
+
                            // todo: add face integral term v
- 
+
                            // w4
  //                          mat += (rho_ts * (shape_psi_ac[j]/present_timestep + vel_ts * grad_shape_psi_ac_theta[j]
  //                                            + shape_vel_theta[j] * grad_psi_ac_ts)
                            mat += (rho_ts * (shape_psi_ac[j]/present_timestep + vel_bar * grad_shape_psi_ac_theta[j])
                                    + shape_rho_theta[j] * D_psi_D_t_ts + mobility_psi * shape_mu_psi_ac[j]) * shape_psi_ac[i];
- 
+
                            // w5
                            //  term i
                            mat += shape_mu_psi_ac[j] * shape_mu_psi_ac[i];
@@ -2618,7 +2663,7 @@
                            //  term iii
                            mat += (-(r_prime_phi_ch_ts * shape_phi_ch_theta[j] * lambda_psi * w_prime_psi_ac_ts
                                      + r_phi_ch_ts * lambda_psi * w_prime_prime_psi_ac_ts * shape_psi_ac_theta[j])
-                                   -  (shape_pressure[j] * inv_rho_partial_psi_ac_ts + pressure_star[q] * shape_inv_rho_partial_psi_theta[j]) * DimensionlessGroups::We 
+                                   -  (shape_pressure[j] * inv_rho_partial_psi_ac_ts + pressure_star[q] * shape_inv_rho_partial_psi_theta[j]) * DimensionlessGroups::We
                                    ) * shape_mu_psi_ac[i];
                            //  term iv
                            mat += - (r_prime_phi_ch_ts * shape_phi_ch_theta[j] * lambda_psi * grad_psi_ac_ts
@@ -2627,7 +2672,7 @@
                                // - lambda_psi * rho_ts * r_prime_phi_ch_ts * shape_phi_ch_theta[j] * (grad_psi_ac_ts * grad_inv_rho_ts) * shape_mu_psi_ac[i]
                                // - lambda_psi * rho_ts * r_phi_ch_ts * (grad_shape_psi_ac_theta[j] * grad_inv_rho_ts) * shape_mu_psi_ac[i]
                                // - lambda_psi * rho_ts * r_phi_ch_ts * (grad_psi_ac_ts * grad_shape_inv_rho_theta[j]) * shape_mu_psi_ac[i];
- 
+
                            // w6
                            mat += (shape_rho_theta[j] * D_vel_Dt_ts
                                    + rho_ts * (shape_vel[j]/present_timestep + grad_shape_vel[j] * vel_bar * theta
@@ -2635,19 +2680,19 @@
                                -  shape_pressure[j] * shape_div_vel[i]
                                +  scalar_product(shape_eta_theta[j] * e_ts + eta_ts * shape_e_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
                                -  scalar_product(shape_rho_theta[j] * gamma_ts + rho_ts * shape_gamma_theta[j], grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
- 
+
                            // w7
                            mat += (- theta * shape_div_vel[j]
                                    + (shape_inv_rho_partial_phi_theta[j] * h_ts + inv_rho_partial_phi_ch_ts * shape_h_ts[j])
                                    - (shape_inv_rho_partial_psi_theta[j] * mobility_psi * mu_psi_ac_star[q]
                                       + inv_rho_partial_psi_ac_ts * mobility_psi * shape_mu_psi_ac[j])) * shape_pressure[i];
- 
+
                            // w8
                            //  term i
                            mat += ((shape_rho_theta[j] * c_ts + rho_ts * shape_c_theta[j]) * D_temperature_Dt_ts
  //                                  +  rho_ts * c_ts * (shape_temperature[j]/present_timestep + shape_vel_theta[j] * grad_temperature_ts
  //                                                      + vel_ts * grad_shape_temperature_theta[j])) * shape_temperature[i];
-                                   +  rho_ts * c_ts * (shape_temperature[j]/present_timestep  
+                                   +  rho_ts * c_ts * (shape_temperature[j]/present_timestep
                                                        + vel_bar * grad_shape_temperature_theta[j])) * shape_temperature[i];
                            //  term ii
                            mat +=(-2. * ( mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_mu_phi_ch[j])
@@ -2657,7 +2702,7 @@
                                   -  eta_ts * scalar_product(e_ts, grad_shape_vel[j]) * theta * DimensionlessGroups::one_over_Pi_eta) * shape_temperature[i];
                            //  term iii
                            mat += ( k_ts * grad_shape_temperature_theta[j]
-                                    + (k_partial_phi_ch_ts * shape_phi_ch_theta[j] 
+                                    + (k_partial_phi_ch_ts * shape_phi_ch_theta[j]
                                      + k_partial_psi_ac_ts * shape_psi_ac_theta[j]) * grad_temperature_ts )
                                    * grad_shape_temperature[i] * DimensionlessGroups::one_over_Pe;
                            //  term iv
@@ -2678,9 +2723,9 @@
                                *  temperature_ts * log_t_ts_tm * shape_temperature[i]
                                +  (c_partial_phi_ch_ts * h_ts - c_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q])
                                *  (log_t_ts_tm + 1.) * shape_temperature_theta[j] * shape_temperature[i];
- #ifdef USE_AXISYMMETRY        
+ #ifdef USE_AXISYMMETRY
                            // axi-2
-                           mat += + 0.5 * vel_bar[0] * one_over_r * ((shape_rho_theta[j] * vel_ts 
+                           mat += + 0.5 * vel_bar[0] * one_over_r * ((shape_rho_theta[j] * vel_ts
                                                                        + rho_ts * shape_vel_theta[j]) * shape_vel[i])
                                   - (shape_pressure[j] * shape_vel[i][0] * one_over_r)
                                   + ((shape_eta_theta[j]*(4./3.*vel_ts[0]*one_over_r-2./3.*div_vel_ts)
@@ -2688,21 +2733,21 @@
                                                 * shape_vel[i][0] * one_over_r
                                     -2./3. * one_over_r * (shape_eta_theta[j] * vel_ts[0] + eta_ts * shape_vel_theta[j][0])
                                                 * shape_div_vel[i])*DimensionlessGroups::one_over_Re;
- 
+
                            // axi-4
                            mat += - shape_vel_theta[j][0] * one_over_r * shape_pressure[i];
                            // pressure reformulated term
-                           mat += (shape_rho_theta[j] * pressure_reformulated_term + rho_ts * shape_pressure_reformulated_term[j]) * shape_vel[i][0] 
+                           mat += (shape_rho_theta[j] * pressure_reformulated_term + rho_ts * shape_pressure_reformulated_term[j]) * shape_vel[i][0]
                                 * one_over_r*DimensionlessGroups::one_over_We;
  #endif
                            cell_matrix(i,j) += mat * jxwq;
- 
+
                          }
                      }
- 
+
                    // w1,2
                    rhs = - h_ts * shape_phi_ch[i] - mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_phi_ch[i]);
- 
+
                    // w3
                    //  term i
                    rhs += - mu_phi_ch_star[q] * shape_mu_phi_ch[i];
@@ -2715,10 +2760,10 @@
                    //  term iv
                    rhs += lambda_phi * (grad_phi_ch_ts * grad_shape_mu_phi_ch[i]);
                        // +  lambda_phi * rho_ts * (grad_phi_ch_ts * grad_inv_rho_ts) * shape_mu_phi_ch[i];
- 
+
                    // w4
                    rhs +=  (- rho_ts *  D_psi_D_t_ts - mobility_psi * mu_psi_ac_star[q]) * shape_psi_ac[i];
- 
+
                    // w5
                    //  term i
                    rhs += - mu_psi_ac_star[q] * shape_mu_psi_ac[i];
@@ -2738,11 +2783,11 @@
                          +    pressure_star[q] * shape_div_vel[i]
                          -    eta_ts * scalar_product(e_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_Re
                          +    rho_ts * scalar_product(gamma_ts, grad_shape_vel[i]) * DimensionlessGroups::one_over_We;
- 
+
                      // w7
                      rhs += (div_vel_ts - inv_rho_partial_phi_ch_ts * h_ts
                              +  inv_rho_partial_psi_ac_ts * mobility_psi * mu_psi_ac_star[q]) * shape_pressure[i];
- 
+
                      // w8
                      //  term i
                      rhs += - rho_ts * c_ts * D_temperature_Dt_ts * shape_temperature[i];
@@ -2767,17 +2812,17 @@
                      rhs += - (0.5 * rho_ts * vel_bar[0] * one_over_r * (vel_ts * shape_vel[i]))
                            + (pressure_star[q] * shape_vel[i][0] * one_over_r)
                            - (eta_ts*(4./3.*vel_ts[0]*one_over_r-2./3.*div_vel_ts) * shape_vel[i][0] * one_over_r
-                                    -2./3. * eta_ts * vel_ts[0]*one_over_r* shape_div_vel[i])*DimensionlessGroups::one_over_Re;                      
- 
+                                    -2./3. * eta_ts * vel_ts[0]*one_over_r* shape_div_vel[i])*DimensionlessGroups::one_over_Re;
+
                      // axi-3
                      rhs += vel_ts[0] * one_over_r * shape_pressure[i];
- 
+
                      // reformulated pressure term
                      rhs += -rho_ts * pressure_reformulated_term * shape_vel[i][0] * one_over_r* DimensionlessGroups::one_over_We;
                    }
-                   
+
  #endif
- 
+
                    // if(cell->index() == 17)
                    // {
                    //  pcout <<" i: " << i << " q: " << q << " rhs: " << rhs << std::endl;
@@ -2785,7 +2830,7 @@
                    cell_rhs(i) += rhs * jxwq;
                  }
                } // q loop on a cell
- 
+
              // face loop, assemble moving contact line bc
              for (const auto face_no : cell->face_indices())
                {
@@ -2796,65 +2841,65 @@
                      fe_face_values.reinit(cell, face_no);
  #ifdef USE_AXISYMMETRY
                      const auto &face_qpoints = fe_face_values.get_quadrature_points();
- #endif                   
+ #endif
                      std::vector<double> face_phi_ch_star(n_q_points);
                      fe_face_values[extractors.phi_ch].get_function_values(current_solution, face_phi_ch_star);
                      std::vector<double> face_phi_ch_n(n_q_points);
                      fe_face_values[extractors.phi_ch].get_function_values(old_solution, face_phi_ch_n);
- 
+
                      std::vector<double> face_psi_ac_star(n_q_points);
                      fe_face_values[extractors.psi_ac].get_function_values(current_solution, face_psi_ac_star);
                      std::vector<double> face_psi_ac_n(n_q_points);
                      fe_face_values[extractors.psi_ac].get_function_values(old_solution, face_psi_ac_n);
- 
+
                      std::vector<Tensor<1,dim> > face_grad_phi_ch_star(n_q_points);
                      fe_face_values[extractors.phi_ch].get_function_gradients(current_solution, face_grad_phi_ch_star);
                      std::vector<Tensor<1,dim> > face_grad_phi_ch_n(n_q_points);
                      fe_face_values[extractors.phi_ch].get_function_gradients(old_solution, face_grad_phi_ch_n);
- 
-                     
+
+
                      for (unsigned int q = 0; q < n_face_q_points; ++q)
                      {
                        double face_jxwq = fe_face_values.JxW(q);
  #ifdef USE_AXISYMMETRY
                        face_jxwq *= face_qpoints[q][0];
  #endif
-                       
+
                        // ts: theta star
                        const double c1 = 1. - theta;
- 
+
                        const double face_phi_ch_ts =
                          theta * face_phi_ch_star[q] + c1 * face_phi_ch_n[q];
- 
+
                        const double face_psi_ac_ts =
                          theta * face_psi_ac_star[q] + c1 * face_psi_ac_n[q];
- 
+
                        const Tensor<1,dim> face_grad_phi_ch_ts =
                          theta * face_grad_phi_ch_star[q] + c1 * face_grad_phi_ch_n[q];
- 
+
                        // const double face_inv_rho_ts =
                        //   InlineFunctions::f(face_phi_ch_ts,
                        //                      face_psi_ac_ts,
                        //                      inv_density_l,
                        //                      inv_density_s,
                        //                      inv_density_g);
- 
+
                        const double face_inv_rho_partial_phi_ch_ts =
                          InlineFunctions::f_partial_phi(face_phi_ch_ts,
                                                         face_psi_ac_ts,
                                                         inv_density_l,
                                                         inv_density_s,
                                                         inv_density_g);
- 
+
                        const double face_inv_rho_partial_psi_ac_ts =
                          InlineFunctions::f_partial_psi(face_phi_ch_ts,
                                                         face_psi_ac_ts,
                                                         inv_density_l,
                                                         inv_density_s);
- 
+
                        // const double q_prime_phi_ch_ts = InlineFunctions::q_prime(face_phi_ch_ts);
                        // const double q_prime_prime_phi_ch_ts = InlineFunctions::q_prime_prime(face_phi_ch_ts);
- 
+
                        std::vector<double> face_shape_phi_ch(dofs_per_cell);
                        std::vector<double> face_shape_psi_ac(dofs_per_cell);
                        std::vector<double> face_shape_phi_ch_theta(dofs_per_cell);
@@ -2863,30 +2908,30 @@
                        std::vector<double> face_shape_mu_phi_ch(dofs_per_cell);
                        std::vector<Tensor<1,dim> > face_grad_shape_phi_ch(dofs_per_cell);
                        std::vector<Tensor<1,dim> > face_grad_shape_phi_ch_theta(dofs_per_cell);
- 
+
                        for (unsigned int k = 0; k < dofs_per_cell; ++k)
                          {
                            face_shape_phi_ch[k] = fe_face_values[extractors.phi_ch].value(k, q);
                            face_shape_psi_ac[k] = fe_face_values[extractors.psi_ac].value(k, q);
- 
+
                            face_shape_phi_ch_theta[k] = face_shape_phi_ch[k] * theta;
                            face_shape_psi_ac_theta[k] = face_shape_psi_ac[k] * theta;
- 
+
                            face_shape_inv_rho_theta[k] =
                              face_inv_rho_partial_phi_ch_ts * face_shape_phi_ch_theta[k]
                              + face_inv_rho_partial_psi_ac_ts * face_shape_psi_ac_theta[k];
- 
+
                            face_grad_shape_phi_ch[k] = fe_face_values[extractors.phi_ch].gradient(k, q);
                            face_grad_shape_phi_ch_theta[k] = face_grad_shape_phi_ch[k] * theta;
- 
+
                            face_shape_mu_phi_ch[k] = fe_face_values[extractors.mu_phi_ch].value(k, q);
                          }
-                       
+
                        // right now only pinned, change later!
                        const bool pin_contact_line = true;
- 
+
                        const auto normal_q = fe_face_values.normal_vector(q);
- 
+
                        for (unsigned int i = 0; i < dofs_per_cell; ++i)
                          {
                            for (unsigned int j = 0; j < dofs_per_cell; ++j)
@@ -2897,15 +2942,15 @@
                                else
                                  wall_A = numbers::SQRT2 * lambda_phi * std::cos(static_contact_angle) / eps
                                                        * (1. - 2. * face_phi_ch_ts) * face_shape_phi_ch_theta[j];
- 
+
                                // w3 term v
                                cell_matrix(i, j) += (wall_A
-                                                     - one_over_wall_relaxation_gamma * (face_shape_phi_ch[j]/present_timestep 
+                                                     - one_over_wall_relaxation_gamma * (face_shape_phi_ch[j]/present_timestep
                                                                                             + wall_velocity * face_grad_shape_phi_ch_theta[j]))
                                                    * face_shape_mu_phi_ch[i] * face_jxwq;
-                                                     
+
                              }
- 
+
                            double wall_A_star;
                            if(pin_contact_line)
                              wall_A_star = lambda_phi * (normal_q * face_grad_phi_ch_ts);
@@ -2913,17 +2958,17 @@
                              wall_A_star = numbers::SQRT2 * lambda_phi * std::cos(static_contact_angle) / eps
                                               * face_phi_ch_ts * (1. - face_phi_ch_ts);
                            // w3 term v
-                           cell_rhs(i) += ( 
+                           cell_rhs(i) += (
                                             - wall_A_star
                                             + one_over_wall_relaxation_gamma * ((face_phi_ch_star[q] - face_phi_ch_n[q])/present_timestep
                                               + wall_velocity * face_grad_phi_ch_ts)
-                                           ) 
+                                           )
                                          * face_shape_mu_phi_ch[i] * face_jxwq;
                          }
                      }
                    }
-               }            
- 
+               }
+
              // stress boundary condition
              if (test_case == TestCase::test2)
                {
@@ -2951,22 +2996,22 @@
                  [&](const unsigned int comp) {
                    if(relax_phase_field)
                    return !(
-                     comp == extractors.psi_ac.component 
-                     || comp == extractors.mu_psi_ac.component 
-                     // || comp == extractors.pressure.component 
-                     // || (comp >= extractors.velocities.first_vector_component 
-                     //     && comp < extractors.velocities.first_vector_component + dim) 
+                     comp == extractors.psi_ac.component
+                     || comp == extractors.mu_psi_ac.component
+                     // || comp == extractors.pressure.component
+                     // || (comp >= extractors.velocities.first_vector_component
+                     //     && comp < extractors.velocities.first_vector_component + dim)
                      // || comp == extractors.temperature.component
                      || comp == extractors.phi_ch.component
                      || comp == extractors.mu_phi_ch.component
                      );
                      else
                      return !(
-                     comp == extractors.psi_ac.component 
-                     || comp == extractors.mu_psi_ac.component 
-                     || comp == extractors.pressure.component 
-                     || (comp >= extractors.velocities.first_vector_component 
-                         && comp < extractors.velocities.first_vector_component + dim) 
+                     comp == extractors.psi_ac.component
+                     || comp == extractors.mu_psi_ac.component
+                     || comp == extractors.pressure.component
+                     || (comp >= extractors.velocities.first_vector_component
+                         && comp < extractors.velocities.first_vector_component + dim)
                      || comp == extractors.temperature.component
                      || comp == extractors.phi_ch.component
                      || comp == extractors.mu_phi_ch.component
@@ -2998,7 +3043,7 @@
                      }
                  }
              }
- # endif            
+ # endif
              // pcout<<" cell index: "<<cell->index()<<std::endl;
              constraints_newton_update.distribute_local_to_global(cell_matrix,
                                                                   cell_rhs,
@@ -3006,55 +3051,55 @@
                                                                   system_matrix,
                                                                   system_rhs);
            }// cell loop
- 
+
      system_matrix.compress(VectorOperation::add);
  //    preconditioner_matrix.compress(VectorOperation::add);
      system_rhs.compress(VectorOperation::add);
- 
+
      timer.stop();
-     pcout<<" assemble time: "<<timer.wall_time()<<std::endl;    
+     pcout<<" assemble time: "<<timer.wall_time()<<std::endl;
  }
  #endif
- 
+
  template <int dim>
  void StokesProblem<dim>::assemble_simplied_model_system(const bool assemble_matrix)
  {
      TimerOutput::Scope t(computing_timer, "assembly");
      Timer timer(mpi_communicator);
- 
- 
+
+
      pcout<<" assemble system... "<<std::flush;
- 
+
      system_matrix         = 0;
  //    preconditioner_matrix = 0;
      system_rhs            = 0;
- 
+
      SymmetricTensor<2, dim> id_tensor;
      for (unsigned int d = 0; d < dim; ++d)
        id_tensor[d][d] = 1.;
- 
+
      const QGauss<dim> quadrature_formula(quadrature_degree);
      const QGauss<dim-1> face_quadrature_formula(quadrature_degree);
- 
+
      FEValues<dim> fe_values(fe,
                              quadrature_formula,
                              update_values | update_gradients |
                              update_quadrature_points | update_JxW_values);
- 
+
      FEFaceValues<dim> fe_face_values(fe,
                                   face_quadrature_formula,
                                   update_values | update_quadrature_points |
                                    update_normal_vectors | update_JxW_values |
                                    update_gradients);
- 
+
      const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
      const unsigned int n_q_points    = quadrature_formula.size();
      // const unsigned int n_face_q_points = face_quadrature_formula.size();
- 
+
      FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
  //    FullMatrix<double> cell_matrix2(dofs_per_cell, dofs_per_cell);
      Vector<double>     cell_rhs(dofs_per_cell);
- 
+
      std::vector<double>         phi_ch_star(n_q_points);
      std::vector<double>         phi_ch_n(n_q_points);
      std::vector<double>         phi_ch_n_minus_1(n_q_points);
@@ -3064,17 +3109,17 @@
      std::vector<double>         mu_phi_ch_star(n_q_points);
      std::vector<double>         mu_psi_ac_star(n_q_points);
      // std::vector<double>         mu_psi_ac_n(n_q_points);
- 
+
      std::vector<Tensor<1,dim>>  grad_phi_ch_star(n_q_points);
      std::vector<Tensor<1,dim>>  grad_phi_ch_n(n_q_points);
      std::vector<Tensor<1,dim>>  grad_psi_ac_star(n_q_points);
      std::vector<Tensor<1,dim>>  grad_psi_ac_n(n_q_points);
      std::vector<Tensor<1,dim>>  grad_mu_phi_ch_star(n_q_points);
      std::vector<Tensor<1,dim>>  grad_mu_psi_ac_star(n_q_points);
- 
+
      std::vector<double>         aux_q_star(n_q_points);
      std::vector<double>         aux_q_n(n_q_points);
- 
+
      // shape functions:
      std::vector<double> shape_phi_ch(dofs_per_cell);
      std::vector<double> shape_psi_ac(dofs_per_cell);
@@ -3083,16 +3128,16 @@
      std::vector<double> shape_mu_phi_ch(dofs_per_cell);
      std::vector<double> shape_mu_psi_ac(dofs_per_cell);
      std::vector<double> shape_aux_q(dofs_per_cell);
- 
+
      std::vector<Tensor<1,dim>> grad_shape_phi_ch(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_phi_ch_theta(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_psi_ac(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_psi_ac_theta(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_mu_phi_ch(dofs_per_cell);
      std::vector<Tensor<1,dim>> grad_shape_mu_psi_ac(dofs_per_cell);
- 
+
      std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
- 
+
      const double temperature_t = initial_temperature;
      pcout << "Using T = " << temperature_t << std::endl;
 
@@ -3104,29 +3149,29 @@
              cell_matrix  = 0;
  //            cell_matrix2 = 0;
              cell_rhs     = 0;
- 
+
              fe_values.reinit(cell);
              fe_values[extractors.phi_ch].get_function_values(current_solution, phi_ch_star);
              fe_values[extractors.phi_ch].get_function_values(old_solution, phi_ch_n);
              fe_values[extractors.phi_ch].get_function_values(old_old_solution, phi_ch_n_minus_1);
              fe_values[extractors.phi_ch].get_function_gradients(current_solution, grad_phi_ch_star);
              fe_values[extractors.phi_ch].get_function_gradients(old_solution, grad_phi_ch_n);
- 
+
              fe_values[extractors.psi_ac].get_function_values(current_solution, psi_ac_star);
              fe_values[extractors.psi_ac].get_function_values(old_solution, psi_ac_n);
              fe_values[extractors.psi_ac].get_function_values(old_old_solution, psi_ac_n_minus_1);
              fe_values[extractors.psi_ac].get_function_gradients(current_solution, grad_psi_ac_star);
              fe_values[extractors.psi_ac].get_function_gradients(old_solution, grad_psi_ac_n);
- 
+
              fe_values[extractors.mu_phi_ch].get_function_values(current_solution, mu_phi_ch_star);
              fe_values[extractors.mu_phi_ch].get_function_gradients(current_solution, grad_mu_phi_ch_star);
- 
+
              fe_values[extractors.mu_psi_ac].get_function_values(current_solution, mu_psi_ac_star);
              fe_values[extractors.mu_psi_ac].get_function_gradients(current_solution, grad_mu_psi_ac_star);
- 
+
              fe_values[extractors.aux_q].get_function_values(current_solution, aux_q_star);
              fe_values[extractors.aux_q].get_function_values(old_solution, aux_q_n);
- 
+
              // {
              //   // print aux_q_star and aux_q_n
              //   for (int iq = 0; iq < n_q_points; ++iq)
@@ -3140,19 +3185,19 @@
              //             << std::endl;
              //     }
              // }
- 
- 
+
+
  #ifdef USE_AXISYMMETRY
              const auto &quadrature_points = fe_values.get_quadrature_points();
  #endif
- 
+
              for (unsigned int q = 0; q < n_q_points; ++q)
              {
                double jxwq = fe_values.JxW(q);
  #ifdef USE_AXISYMMETRY
                jxwq *= quadrature_points[q][0];
                const double one_over_r = 1.0 / quadrature_points[q][0];
-               
+
  #endif
                const double F_n         = InlineFunctions::F(phi_ch_n[q],
                                                      psi_ac_n[q],
@@ -3174,7 +3219,7 @@
                const double F_ts = InlineFunctions::extrapolate_solution(
                  F_n, F_n_minus_1, old_timestep, 0.5 * present_timestep);
                // print the input of F_ts
-               // if(cell->index() == 0) 
+               // if(cell->index() == 0)
                // {
                //   pcout<<"F_n: "<<F_n<<" F_n_minus_1: "<<F_n_minus_1<<" old_timestep: "<<old_timestep<<" present_timestep: "<<present_timestep<<std::endl;
                //   pcout<<"F_ts: "<<F_ts<<std::endl;
@@ -3204,7 +3249,7 @@
                                               dFdphi_n_minus_1,
                                               old_timestep,
                                               0.5 * present_timestep);
- 
+
                // dFdψ_n
                const double dFdpsi_n = InlineFunctions::dFdpsi(phi_ch_n[q],
                                                                psi_ac_n[q],
@@ -3230,39 +3275,39 @@
                                               dFdpsi_n_minus_1,
                                               old_timestep,
                                               0.5 * present_timestep);
- 
+
                // 1 / (2 √(F^{n+1/2} + C)
                const double inv_2sqrt_F_ts_plus_C =
                  1.0 / (2.0 * std::sqrt(F_ts + simplified_model_parameters.aux_c));
- 
+
                for (unsigned int k = 0; k < dofs_per_cell; ++k)
                  {
                    shape_phi_ch[k] = fe_values[extractors.phi_ch].value(k, q);
                    shape_psi_ac[k] = fe_values[extractors.psi_ac].value(k, q);
                    shape_phi_ch_theta[k] = theta * shape_phi_ch[k];
                    shape_psi_ac_theta[k] = theta * shape_psi_ac[k];
- 
+
                    grad_shape_phi_ch[k] =
                      fe_values[extractors.phi_ch].gradient(k, q);
                    grad_shape_phi_ch_theta[k] = theta * grad_shape_phi_ch[k];
                    grad_shape_psi_ac[k] =
                      fe_values[extractors.psi_ac].gradient(k, q);
                    grad_shape_psi_ac_theta[k] = theta * grad_shape_psi_ac[k];
- 
+
                    shape_mu_phi_ch[k] =
                      fe_values[extractors.mu_phi_ch].value(k, q);
                    shape_mu_psi_ac[k] =
                      fe_values[extractors.mu_psi_ac].value(k, q);
- 
+
                    grad_shape_mu_phi_ch[k] =
                      fe_values[extractors.mu_phi_ch].gradient(k, q);
                    grad_shape_mu_psi_ac[k] =
                      fe_values[extractors.mu_psi_ac].gradient(k, q);
- 
+
                    shape_aux_q[k] = fe_values[extractors.aux_q].value(k, q);
- 
+
                  }
- 
+
                for (unsigned int i = 0; i < dofs_per_cell; ++i)
                  {
                    if(assemble_matrix)
@@ -3271,51 +3316,51 @@
                          {
                            // Equation 1: (δφ / Δt, \tilde{φ})
                            mat = (1.0 / present_timestep) * shape_phi_ch[j] * shape_phi_ch[i] ;
- 
+
                            // Equation 1: (M_φ ∇ δμ_φ, ∇ \tilde{φ})
                            mat += mobility_phi *
                                  (grad_shape_mu_phi_ch[j] * grad_shape_phi_ch[i]);
- 
+
                            // Equation 2: (δμ_φ, \tilde{μ_φ})
                            mat += shape_mu_phi_ch[j] * shape_mu_phi_ch[i];
- 
+
                            // Equation 2: (λ_φ ∇ (δφ / 2), ∇ \tilde{μ}_φ)
                            mat += -(lambda_phi / 2.0) * (grad_shape_phi_ch[j] *
                                                         grad_shape_mu_phi_ch[i]);
- 
+
                            // Equation 2: - (δq / (2 √(F^{n+1/2} + C)) ∂F^{n+1/2}/∂φ, \tilde{μ}_φ)
                            mat += - shape_aux_q[j] * inv_2sqrt_F_ts_plus_C * dFdphi_ts * shape_mu_phi_ch[i] ;
- 
+
                            // Equation 3: (δψ / Δt + M_ψ δμ_ψ, \tilde{ψ})
                            mat += ((1.0 / present_timestep) * shape_psi_ac[j] +
                                    mobility_psi * shape_mu_psi_ac[j]) *
                                   shape_psi_ac[i];
-                           
+
                            // Equation 4: (δμ_ψ, \tilde{μ}_ψ)
                            mat += shape_mu_psi_ac[j] * shape_mu_psi_ac[i];
- 
+
                            // Equation 4: (λ_ψ ∇ (δψ / 2), ∇ \tilde{μ}_ψ)
                            mat += -(lambda_psi / 2.0) * (grad_shape_psi_ac[j] *
                                                         grad_shape_mu_psi_ac[i]);
- 
+
                            // Equation 4: - (δq / (2 √(F^{n+1/2} + C)) ∂F^{n+1/2}/∂ψ, \tilde{μ}_ψ)
                            mat += -(
                              shape_aux_q[j] * shape_mu_psi_ac[i] * dFdpsi_ts * inv_2sqrt_F_ts_plus_C);
- 
+
                          // Equation 5: (δq / Δt, \tilde{q})
                          mat += (1.0 / present_timestep) * shape_aux_q[j] * shape_aux_q[i];
- 
+
                          // Equation 5: - (1 / (2 √(F^{n+1/2} + C)) （∂F^{n+1/2}/∂φ (δφ / Δt)+∂F^{n+1/2}/∂ψ
                          // (δψ/Δt)), \tilde{q})
                          mat += -(
                            shape_aux_q[i] *
                            (dFdphi_ts * (1.0 / present_timestep) * shape_phi_ch[j] +
                             dFdpsi_ts * (1.0 / present_timestep) * shape_psi_ac[j]) * inv_2sqrt_F_ts_plus_C);
- 
+
  #ifdef USE_AXISYMMETRY
  #endif
                            cell_matrix(i,j) += mat * jxwq;
- 
+
                          }
                      }
                      // stop here if q==48
@@ -3323,20 +3368,20 @@
                      // {
                      //   pcout<<" cell index: "<<cell->index()<<" i: "<<i<<" q: "<<q<<" mat: "<<mat<<std::endl;
                      // }
- 
+
                    // w1,2
                    // rhs = - h_ts * shape_phi_ch[i] - mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_phi_ch[i]);
- 
+
                    // Equation 1: - ( (φ^*- φ^n)/delta_t, \tilde{φ})
                    rhs = - (phi_ch_star[q] - phi_ch_n[q]) / present_timestep * shape_phi_ch[i];
                    // pcout<<" cell index1: "<<cell->index()<<" i: "<<i<<" q: "<<q<<" rhs: "<<rhs<<std::endl;
- 
+
                    // Equation 1: - (M_φ ∇ μ_φ^n, ∇ \tilde{φ})
                    rhs += - mobility_phi * (grad_mu_phi_ch_star[q] * grad_shape_phi_ch[i]);
                    // pcout<<" cell index2: "<<cell->index()<<" i: "<<i<<" q: "<<q<<" rhs: "<<rhs<<std::endl;
- 
-                   // Equation 2: (-μ_φ^*, \tilde{μ}_φ) 
-                   // - (λ_φ (∇φ^*+ ∇φ^n)/2, ∇ \tilde{μ}_φ) 
+
+                   // Equation 2: (-μ_φ^*, \tilde{μ}_φ)
+                   // - (λ_φ (∇φ^*+ ∇φ^n)/2, ∇ \tilde{μ}_φ)
                    // + ((q^n+ q^*) / (2*√(F^n+1/2 + C) ∂F^n+1/2/∂φ) ∂F^n+1/2/∂ψ, \tilde{μ}_φ)
                    rhs += -mu_phi_ch_star[q] * shape_mu_phi_ch[i] +
                           (lambda_phi / 2.) *
@@ -3354,12 +3399,12 @@
                    //   <<" lambda_phi: "<<lambda_phi<<" grad_phi_ch_star[q]: "<<grad_phi_ch_star[q]
                    //   <<" grad_phi_ch_n[q]: "<<grad_phi_ch_n[q]<<std::endl;
                    // }
- 
+
                    // Equation 3: - ((ψ^* - ψ^n)/ delta_t +  M_ψ μ_ψ^*, \tilde{ψ})
                    rhs += -((psi_ac_star[q] - psi_ac_n[q]) / present_timestep +
                             mobility_psi * mu_psi_ac_star[q]) *
                           shape_psi_ac[i];
- 
+
                    // Equation 4: (-μ_ψ^*, \tilde{μ}_ψ)
                    // - (λ_ψ (∇ ψ^n + ∇ ψ^n)/2, ∇ \tilde{μ}_ψ)
                    // + ( (q^n + q^*)/ (2*√(F^n+1/2 + C)) ∂F^n+1/2/∂ψ, \tilde{μ}_ψ)
@@ -3369,19 +3414,19 @@
                             grad_shape_mu_psi_ac[i] +
                           (aux_q_star[q] + aux_q_n[q]) * inv_2sqrt_F_ts_plus_C *
                             dFdpsi_ts * shape_mu_psi_ac[i];
- 
+
                    // Equation 5: - (q^* - q^n) / delta_t, \tilde{q}
                    rhs += - (aux_q_star[q] - aux_q_n[q]) / present_timestep * shape_aux_q[i];
- 
+
                    // Equation 5:  (1 / (2 √(F^{n+1/2} + C)) （∂F^{n+1/2}/∂φ ((φ^*-φ^n) / Δt)+∂F^{n+1/2}/∂ψ
                    // ((ψ^*-ψ^n)/Δt)), \tilde{q})
                    rhs += inv_2sqrt_F_ts_plus_C *
                            (dFdphi_ts * (phi_ch_star[q] - phi_ch_n[q]) / present_timestep +
                             dFdpsi_ts * (psi_ac_star[q] - psi_ac_n[q]) / present_timestep) * shape_aux_q[i];
- 
+
                             // if(!relax_phase_field)
                    // {
-                     
+
                    // }
  #ifdef USE_AXISYMMETRY
  #endif
@@ -3390,29 +3435,29 @@
                    // pcout<<" cell index3: "<<cell->index()<<" i: "<<i<<" q: "<<q<<" rhs: "<<rhs<<std::endl;
                  }
                } // q loop on a cell
- 
+
  # if 0
              {
                const auto is_not_selected_component =
                  [&](const unsigned int comp) {
                    if(relax_phase_field)
                    return !(
-                     comp == extractors.psi_ac.component 
-                     || comp == extractors.mu_psi_ac.component 
-                     // || comp == extractors.pressure.component 
-                     // || (comp >= extractors.velocities.first_vector_component 
-                     //     && comp < extractors.velocities.first_vector_component + dim) 
+                     comp == extractors.psi_ac.component
+                     || comp == extractors.mu_psi_ac.component
+                     // || comp == extractors.pressure.component
+                     // || (comp >= extractors.velocities.first_vector_component
+                     //     && comp < extractors.velocities.first_vector_component + dim)
                      // || comp == extractors.temperature.component
                      || comp == extractors.phi_ch.component
                      || comp == extractors.mu_phi_ch.component
                      );
                      else
                      return !(
-                     comp == extractors.psi_ac.component 
-                     || comp == extractors.mu_psi_ac.component 
-                     // || comp == extractors.pressure.component 
-                     // || (comp >= extractors.velocities.first_vector_component 
-                     //     && comp < extractors.velocities.first_vector_component + dim) 
+                     comp == extractors.psi_ac.component
+                     || comp == extractors.mu_psi_ac.component
+                     // || comp == extractors.pressure.component
+                     // || (comp >= extractors.velocities.first_vector_component
+                     //     && comp < extractors.velocities.first_vector_component + dim)
                      // || comp == extractors.temperature.component
                       || comp == extractors.phi_ch.component
                      || comp == extractors.mu_phi_ch.component
@@ -3444,7 +3489,7 @@
                      }
                  }
              }
- # endif            
+ # endif
              // pcout<<" cell index: "<<cell->index()<<std::endl;
              // cell_rhs.print(std::cout);
              constraints_newton_update.distribute_local_to_global(cell_matrix,
@@ -3453,65 +3498,65 @@
                                                                   system_matrix,
                                                                   system_rhs);
            }// cell loop
- 
+
      system_matrix.compress(VectorOperation::add);
  //    preconditioner_matrix.compress(VectorOperation::add);
      system_rhs.compress(VectorOperation::add);
- 
+
      timer.stop();
-     pcout<<" assemble time: "<<timer.wall_time()<<std::endl;    
+     pcout<<" assemble time: "<<timer.wall_time()<<std::endl;
  }
- 
- 
- 
+
+
+
  template <int dim>
  void StokesProblem<dim>::newton_iteration()
  {
    TimerOutput::Scope t(computing_timer, "Newton");
    pcout<< "Newton iteration" << std::endl;
- 
+
    // set to 1 for testing
    const unsigned int max_iter = 20;
    bool assemble_matrix = false;
- 
+
  #ifdef USE_SIMPLIFIED_MODEL
    assemble_simplied_model_system(assemble_matrix);
  #else
    assemble_system(assemble_matrix);
  #endif
- 
+
    const double initial_residual = system_rhs.l2_norm();
    double residual = initial_residual;
    double residual_old = initial_residual + 1.;
    double alpha = 1.;
- 
+
    pcout << "initial residual=" << residual << std::endl;
  // #define USE_BLOCKDIRECT_SOLVER
- 
+
  #ifdef USE_PETSC_LA
    SolverControl cn;
    PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
  #else
    SolverControl                  solver_control(2000, 1e-8);
- 
+
    TrilinosWrappers::SolverDirect::AdditionalData data;
    // data.solver_type = "Amesos_Umfpack";
    // data.solver_type = "Amesos_Mumps";
    data.solver_type = "Amesos_Klu";
-   
-   
+
+
    // TrilinosWrappers::SolverDirect solver(solver_control, data);
- 
+
   //  TrilinosWrappers::PreconditionBlockwiseDirect preconditioner;
   //  TrilinosWrappers::PreconditionBlockSOR preconditioner;
    TrilinosWrappers::PreconditionSSOR preconditioner;
    // SolverGMRES<VectorType> solver(solver_control);
    SolverBicgstab<VectorType> solver(solver_control);
- 
+
    // TrilinosWrappers::SolverDirect::AdditionalData data;
    // TrilinosWrappers::SolverDirect                 solver(solver_control, data);
  #endif
- 
+
    assemble_matrix = true;
    VectorType locally_owned_solution(system_rhs);
    VectorType locally_owned_solution_tmp(system_rhs);
@@ -3522,7 +3567,7 @@
  #else
        assemble_system(assemble_matrix);
  #endif
- 
+
        {
          TimerOutput::Scope t(computing_timer, "Direct Solve");
         //  try
@@ -3533,7 +3578,7 @@
         //                   newton_update,
         //                   system_rhs,
         //                   preconditioner);
- 
+
         //      pcout << " cg number of iterations: " << solver_control.last_step()
         //            << " cg solve time: "<< timer.wall_time()
         //            << std::endl;
@@ -3549,24 +3594,24 @@
              pcout<<" direct solver time: "<<timer.wall_time()<<std::endl;
            }
          }
- 
- 
+
+
        pcout<<" mat norm: "<<system_matrix.frobenius_norm()
             <<" rh2 norm: "<< system_rhs.l2_norm()
             <<" sol norm: "<< newton_update.l2_norm()<<std::endl;
- 
+
        constraints_newton_update.distribute(newton_update);
- 
+
        // locally_owned_solution += newton_update;
        alpha = 1.;
        locally_owned_solution.add(alpha, newton_update);
        current_solution = locally_owned_solution;
- 
+
        // {
        //   locally_relevant_solution = current_solution;
        //   output_results(1000000+k);
        // }
-       
+
        residual_old = residual;
        // assemble_system(false);
  #ifdef USE_SIMPLIFIED_MODEL
@@ -3576,7 +3621,7 @@
  #endif
          residual = system_rhs.l2_norm();
          pcout << "k= " << k << "  residual = " << residual << std::endl;
- 
+
          if (residual > residual_old)
            {
              // backtracking is trigged
@@ -3586,7 +3631,7 @@
              double       alpha3 = 1.;
              double       g3     = residual;
              const double g1     = residual_old;
- 
+
              for (unsigned int m = 0; m < 30; ++m)
                {
                  alpha3 *= 0.5;
@@ -3605,7 +3650,7 @@
                  if (g3 < residual_old)
                    break;
                }
- 
+
              const double alpha2        = 0.5 * alpha3;
              locally_owned_solution_tmp = locally_owned_solution;
              locally_owned_solution_tmp.add(alpha2, newton_update);
@@ -3617,7 +3662,7 @@
  #endif
              const double g2 = system_rhs.l2_norm();
              pcout << " g2 = " << g2 << " alpha2 = " << alpha2 << std::endl;
- 
+
              if (g2 < g3)
                {
                  alpha    = alpha2;
@@ -3628,7 +3673,7 @@
                  alpha    = alpha3;
                  residual = g3;
                }
- 
+
              // find alpha0
              const double h1            = (g2 - g1) / alpha2;
              const double h2            = (g3 - g2) / (alpha3 - alpha2);
@@ -3644,13 +3689,13 @@
  #endif
              const double g0 = system_rhs.l2_norm();
              pcout << " g0 = " << g0 << " alpha0 = " << alpha0 << std::endl;
- 
+
              if (residual > g0)
                {
                  alpha    = alpha0;
                  residual = g0;
                }
- 
+
              pcout << " residual = " << residual << " alpha = " << alpha
                    << std::endl;
              // locally_owned_solution += newton_update;
@@ -3662,7 +3707,7 @@
        }
      locally_relevant_solution = current_solution;
    }
- 
+
    template <int dim>
    void
    StokesProblem<dim>::map_dofs_to_component(
@@ -3686,65 +3731,65 @@
              }
          }
    }
- 
+
    template <int dim>
    void
    StokesProblem<dim>::solve()
    {
      //    TimerOutput::Scope t(computing_timer, "solve");
- 
+
      //    LA::MPI::PreconditionAMG prec_A;
      //    {
      //        LA::MPI::PreconditionAMG::AdditionalData data;
- 
+
      // #ifdef USE_PETSC_LA
      //         data.symmetric_operator = true;
      // #endif
      //         prec_A.initialize(system_matrix.block(0, 0), data);
      //     }
- 
+
      //    LA::MPI::PreconditionAMG prec_S;
      //    {
      //        LA::MPI::PreconditionAMG::AdditionalData data;
- 
+
      // #ifdef USE_PETSC_LA
      //         data.symmetric_operator = true;
      // #endif
      //         prec_S.initialize(preconditioner_matrix.block(1, 1), data);
      //     }
- 
+
      //    using mp_inverse_t =
      //    LinearSolvers::InverseMatrix<LA::MPI::SparseMatrix,
      //          LA::MPI::PreconditionAMG>;
      //    const mp_inverse_t mp_inverse(preconditioner_matrix.block(1, 1),
      //    prec_S);
- 
+
      //    const
      //    LinearSolvers::BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG,
      //          mp_inverse_t>
      //          preconditioner(prec_A, mp_inverse);
- 
+
      //    SolverControl solver_control(system_matrix.m(),
      //                                 1e-10 * system_rhs.l2_norm());
- 
+
      //    SolverMinRes<LA::MPI::BlockVector> solver(solver_control);
- 
+
      //    LA::MPI::BlockVector distributed_solution(block_owned_partitioning,
      //            mpi_communicator);
- 
+
      //    constraints.set_zero(distributed_solution);
- 
+
      //    solver.solve(system_matrix,
      //                 distributed_solution,
      //                 system_rhs,
      //                 preconditioner);
- 
+
      //    pcout << "   Solved in " << solver_control.last_step() << "
      //    iterations."
      //          << std::endl;
- 
+
      //    constraints.distribute(distributed_solution);
- 
+
      //    locally_relevant_solution = distributed_solution;
      //    const double mean_pressure =
      //        VectorTools::compute_mean_value(dof_handler,
@@ -3754,16 +3799,16 @@
      //    distributed_solution.block(1).add(-mean_pressure);
      //    locally_relevant_solution.block(1) = distributed_solution.block(1);
    }
- 
- 
- 
+
+
+
    template <int dim>
    void
    StokesProblem<dim>::refine_grid()
    {
      TimerOutput::Scope t(computing_timer, "refine");
      pcout << "   Refine..." << std::endl;
- 
+
      const bool refine_mesh_local =
        label_mesh<dim, VectorType>(dof_handler,
                                    fe,
@@ -3773,42 +3818,42 @@
                                    0,
                                    n_refinement,
                                    extractors);
- 
+
      const bool refine_mesh =
        Utilities::MPI::logical_or(refine_mesh_local, mpi_communicator);
- 
+
      if (refine_mesh)
        {
          pcout << "Refine mesh..." << std::endl;
          parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
            dof_handler);
- 
+
          std::vector<const VectorType *> in_solution(2);
          in_solution[0] = &locally_relevant_solution;
          in_solution[1] = &old_solution;
- 
+
          triangulation.prepare_coarsening_and_refinement();
- 
+
          solution_trans.prepare_for_coarsening_and_refinement(in_solution);
- 
+
          triangulation.execute_coarsening_and_refinement();
- 
+
  #ifdef USE_DIRECT_SOLVER
      setup_system();
  #else
      setup_block_system();
- #endif    
-     
+ #endif
+
      VectorType distributed_sol1(system_rhs);
      VectorType distributed_sol2(system_rhs);
      std::vector<VectorType *> tmp(2);
      tmp[0] = &distributed_sol1;
      tmp[1] = &distributed_sol2;
      solution_trans.interpolate(tmp);
- 
+
      constraints_boundary.distribute(distributed_sol1);
      constraints_boundary.distribute(distributed_sol2);
- 
+
      locally_relevant_solution = distributed_sol1;
      old_solution = distributed_sol2;
    }
@@ -3816,11 +3861,11 @@
    {
      pcout << "No refinement" << std::endl;
    }
- 
+
  }
- 
- 
- 
+
+
+
  template <int dim>
  void StokesProblem<dim>::output_results(const unsigned int cycle) const
  {
@@ -3838,9 +3883,9 @@
      dim, DataComponentInterpretation::component_is_part_of_vector);
      const stating_comp_id = dim;
  #endif
- 
- 
- 
+
+
+
      for(unsigned int n=starting_comp_id; n<fe.n_components(); ++n)
        {
          if(n == extractors.mu_phi_ch.component)
@@ -3865,30 +3910,30 @@
            }
          data_component_interpretation.push_back(
              DataComponentInterpretation::component_is_scalar);
- 
+
        }
- 
+
      DataOut<dim> data_out;
      data_out.attach_dof_handler(dof_handler);
      data_out.add_data_vector(locally_relevant_solution,
                               solution_names,
                               DataOut<dim>::type_dof_data,
                               data_component_interpretation);
- 
+
      Vector<float> subdomain(triangulation.n_active_cells());
      for (unsigned int i = 0; i < subdomain.size(); ++i)
          subdomain(i) = triangulation.locally_owned_subdomain();
      data_out.add_data_vector(subdomain, "subdomain");
- 
+
      data_out.build_patches(2);
- 
+
      // have to create the directory output
      data_out.write_vtu_with_pvtu_record(
          output_dir, "solution", cycle, mpi_communicator, 5, 1);
  }
- 
+
  template <int dim>
- void StokesProblem<dim>::print_variables() const 
+ void StokesProblem<dim>::print_variables() const
  {
    pcout << " eps:                  " << eps << std::endl
          << " density_s:            " << density_s << std::endl
@@ -3917,16 +3962,16 @@
  #ifdef USE_AXISYMMETRY
    pcout << " axisymetric:          " << "true" << std::endl;
  #else
-   pcout << " axisymetric:          " << "false" << std::endl;  
- #endif    
+   pcout << " axisymetric:          " << "false" << std::endl;
+ #endif
  #ifdef USE_NEW_R
    pcout << " new_r:                " << "true" << std::endl;
  #else
-   pcout << " new_r:                " << "false" << std::endl;   
+   pcout << " new_r:                " << "false" << std::endl;
  #endif
- 
+
  }
- 
+
  template <int dim>
  void
  StokesProblem<dim>::test_adaptive_refinement()
@@ -3940,43 +3985,43 @@
                                  0,
                                  n_refinement,
                                  extractors);
-   if(refine_mesh)                                
+   if(refine_mesh)
    {
      pcout << "Refine mesh\n" << std::flush;
      parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
        dof_handler);
- 
+
      std::vector<const VectorType *> in_solution(2);
      in_solution[0] = &locally_relevant_solution;
      in_solution[1] = &old_solution;
- 
+
      triangulation.prepare_coarsening_and_refinement();
- 
+
      solution_trans.prepare_for_coarsening_and_refinement(in_solution);
- 
+
      triangulation.execute_coarsening_and_refinement();
- 
+
  #ifdef USE_DIRECT_SOLVER
      setup_system();
  #else
      setup_block_system();
  #endif
- 
+
      VectorType                distributed_sol1(system_rhs);
      VectorType                distributed_sol2(system_rhs);
      std::vector<VectorType *> tmp(2);
      tmp[0] = &distributed_sol1;
      tmp[1] = &distributed_sol2;
      solution_trans.interpolate(tmp);
- 
+
      constraints_boundary.distribute(distributed_sol1);
      constraints_boundary.distribute(distributed_sol2);
- 
+
      locally_relevant_solution = distributed_sol1;
      old_solution              = distributed_sol2;
    }
  }
- 
+
  template <int dim>
  void
  StokesProblem<dim>::save_checkpoint(const unsigned int step_number,
@@ -3990,32 +4035,32 @@
      solutions[0] = &locally_relevant_solution;
      solutions[1] = &old_solution;
      solutions[2] = &old_old_solution;
- 
+
      for (unsigned int i = 0; i < solutions.size(); ++i)
        {
          VectorType tmp_sol(system_rhs);
          tmp_sol = *solutions[i];
          pcout << " solution l2 norm: " << tmp_sol.l2_norm() << std::endl;
        }
- 
+
      parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
        dof_handler);
- 
+
      solution_trans.prepare_for_serialization(solutions);
      triangulation.save(checkpoints_dir + "restart.mesh");
    }
- 
+
    {
      // other parameters
      std::ofstream ofs(checkpoints_dir + "restart.dat");
      boost::archive::binary_oarchive ar(ofs);
- 
+
      ar & step_number;
      ar & runtime;
      ar & present_timestep;
    }
  }
- 
+
  template <int dim>
  void
  StokesProblem<dim>::load_checkpoint(unsigned int &step_number,
@@ -4024,32 +4069,32 @@
    const unsigned int step_number_old = step_number;
    std::string step_number_string;
    if(step_number != 0)
-     step_number_string = "-" + Utilities::int_to_string(step_number, 5);  
+     step_number_string = "-" + Utilities::int_to_string(step_number, 5);
    pcout<<" load checkpoint from: "
    << (checkpoints_dir + "restart" + step_number_string + ".mesh")
    << std::flush;
-   
- 
+
+
    {
      create_coarse_grid(triangulation);
      pcout << " n_levels: " << triangulation.n_levels() << std::endl;
-     
+
      triangulation.load(checkpoints_dir + "restart" + step_number_string + ".mesh");
      // set_boundary_ids();
      print_mesh_info(triangulation);
      // dof_handler.distribute_dofs(fe);
      // pcout << " n_dofs: " << dof_handler.n_dofs() << std::endl;
- 
+
      setup_system();
- 
+
      parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
        dof_handler);
- 
+
      const unsigned int      n_vectors = 3;
      std::vector<VectorType> solutions(n_vectors);
      for (unsigned int i = 0; i < n_vectors; ++i)
        solutions[i].reinit(dof_handler.locally_owned_dofs(), mpi_communicator);
- 
+
      std::vector<VectorType *> x_system(3);
      int                       i = 0;
      for (auto &v : x_system)
@@ -4057,7 +4102,7 @@
          v = &solutions[i];
          ++i;
        }
- 
+
      solution_trans.deserialize(x_system);
      for (unsigned int i = 0; i < solutions.size(); ++i)
        {
@@ -4067,24 +4112,24 @@
      old_solution              = solutions[1];
      old_old_solution          = solutions[2];
    }
- 
+
    {
      // load other parameters:
      // std::ifstream                   ifs("checkpoint.dat");
      std::ifstream                   ifs(checkpoints_dir + "restart" + step_number_string + ".dat");
      boost::archive::binary_iarchive ar(ifs);
- 
+
      ar &step_number;
      ar &runtime;
      ar &present_timestep;
      if(step_number_old !=0)
        AssertDimension(step_number, step_number_old);
- 
+
    }
    pcout<<" loaded checkpoint from step: "<<step_number<<" runtime: "<<runtime<<std::endl;
  }
- 
- 
+
+
  template <int dim>
  double StokesProblem<dim>::compute_mass() const {
    deallog<<" computing mass...  ";
@@ -4096,7 +4141,7 @@
      //const uint n_q = q_iterated.size();
      const QGauss<dim> quadrature_formula(quadrature_degree);
      const QGauss<dim-1> face_quadrature_formula(quadrature_degree);
- 
+
      FEValues<dim> fe_values(fe,
                              quadrature_formula,
                              update_values |
@@ -4104,9 +4149,9 @@
      const unsigned int n_q_points    = quadrature_formula.size();
      std::vector<double>         phi_ch(n_q_points);
      std::vector<double>         psi_ac(n_q_points);
- 
+
      double local_mass = 0.;
- 
+
      typename DoFHandler<dim>::active_cell_iterator
      cell = dof_handler.begin_active(),
      endc = dof_handler.end();
@@ -4115,40 +4160,40 @@
          if(cell->is_locally_owned())
            {
              fe_values.reinit(cell);
- 
+
              fe_values[extractors.phi_ch].get_function_values(current_solution, phi_ch);
              fe_values[extractors.psi_ac].get_function_values(current_solution, psi_ac);
- 
+
              for(unsigned int q=0; q<n_q_points; ++q)
                {
                  local_mass += 2 * numbers::PI  * fe_values.JxW(q) * fe_values.quadrature_point(q)(0) *
                            (density_s * phi_ch[q] * (1- psi_ac[q]) + density_l * phi_ch[q] * psi_ac[q]);
                }
            }
- 
+
        }
      const double mass = Utilities::MPI::sum(local_mass, mpi_communicator);
      deallog<<"done! mass = "<< mass <<std::endl;
      return mass;
  }
- 
- 
+
+
  template <int dim>
- void StokesProblem<dim>::write_mass(std::ofstream &mass_file, 
-                                     const double mass) const 
+ void StokesProblem<dim>::write_mass(std::ofstream &mass_file,
+                                     const double mass) const
  {
      mass_file << std::setw(10) << std::setprecision(10) << runtime
             <<" " << std::setw(10) << std::setprecision(10) << mass
             << std::endl;
  }
- 
- 
+
+
  template <int dim>
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp875/";
- 
+   const std::string prefix = "tmp876/";
+
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
    if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
@@ -4165,27 +4210,27 @@
  #endif
      pcout << "n refinement " << n_refinement << ':' << std::endl;
      pcout << " output_dir: " << output_dir << std::endl;
- 
+
      step_number = 0;
      runtime           = 0.;
- 
-     const unsigned int max_step_number =100000;
+
+     const unsigned int max_step_number =20000;
      const unsigned int output_interval = 100;
      const unsigned int checkpoint_output_interval = 50;
      const unsigned int save_checkpoint_interval = 10; // smaller than or equal to checkpoint_output_interval
- 
+
      const bool start_from_checkpoint = false;
- 
+
      if(!start_from_checkpoint)
        {
          make_grid();
- 
+
  #ifdef USE_DIRECT_SOLVER
          setup_system();
  #else
          setup_block_system();
  #endif
- 
+
          setup_initial_condition();
          relax_phase_field = false;
          const unsigned int n_relaxation_steps = 3;
@@ -4198,7 +4243,7 @@
                old_timestep = present_timestep;
                // if(i==0)
                //   theta = 1.;
-               // else 
+               // else
                //   theta = 0.5;
                newton_iteration();
                old_old_solution = old_solution;              // n-1
@@ -4207,16 +4252,16 @@
                // output_results(i+1);
                pcout<<std::endl;
              }
-         pcout<<" done relaxation phase field "<<std::endl;            
+         pcout<<" done relaxation phase field "<<std::endl;
          relax_phase_field = false;
          // exit(0);
- 
- 
- 
+
+
+
          // {
          //   // relaxation of psi and phi
          //   VectorType tmp_initial_sol;
- 
+
          //   tmp_initial_sol.reinit(dof_handler.locally_owned_dofs(),
          //                          mpi_communicator);
          //   tmp_initial_sol = locally_relevant_solution;
@@ -4244,9 +4289,9 @@
        step_number = 700;
        load_checkpoint(step_number, runtime);
      }
- 
+
      output_results(step_number);
- 
+
      // test_adaptive_refinement();
      // output_results(step_number+1);
      // exit(0);
@@ -4260,12 +4305,12 @@
          if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
            write_mass(mass_file, mass);
        }
- 
+
      while (step_number < max_step_number)
        {
          old_timestep     = present_timestep;
          present_timestep = std::min(fix_timestep, (1e-5) * std::pow(1.05, step_number));
- 
+
          step_number ++;
          runtime += present_timestep;
          // if (step_number == 1)
@@ -4273,19 +4318,28 @@
          // else
          //   theta = 0.5;
          pcout << "###starting step " << step_number << "  dt= " << present_timestep
-               << "  time= " << runtime 
+               << "  time= " << runtime
                << " theta= " << theta
                << std::endl;
- 
+
          if(step_number > 1 && use_adaptive_refinement)
            refine_grid();
- 
+
          old_old_solution = old_solution;          // n-1
          old_solution = locally_relevant_solution; // n
          current_solution = old_solution; // u^*, newton initial guess
- 
+
+         // 每50步 reset aux_q
+        if (step_number % 50 == 0)
+        {
+          pcout << "Resetting aux_q at step " << step_number << std::endl;
+          reset_aux_q(old_solution);
+          reset_aux_q(old_old_solution);
+        }
+
+
          newton_iteration();
- 
+
          // {
          //   // limit psi
          //   std::vector<unsigned int> global_index_to_component(dof_handler.n_dofs(), numbers::invalid_unsigned_int);
@@ -4302,16 +4356,16 @@
          //           }
          //       }
          // }
- 
+
          if ((step_number % output_interval == 0)||(step_number <21 ))
            {
              TimerOutput::Scope t(computing_timer, "output");
              output_results(step_number);
            }
- 
+
        if(step_number%save_checkpoint_interval == 0)
          save_checkpoint(step_number, runtime);
- 
+
        if(step_number % checkpoint_output_interval == 0)
        {
          if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
@@ -4323,14 +4377,14 @@
            move_file(checkpoints_dir + "restart.dat", filename + ".dat");
          }
        }
- 
+
        if(track_mass)
          {
            double mass = compute_mass();
            if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
              write_mass(mass_file, mass);
          }
- 
+
        pcout << std::endl;
        pcout << std::endl;
        }
@@ -4339,16 +4393,16 @@
      mass_file.close();
  }
  } // namespace Step55
- 
- 
- 
+
+
+
  int main(int argc, char *argv[])
  {
      try
      {
          using namespace dealii;
          using namespace Step55;
- 
+
          Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
          const TestCase testcase = TestCase::test3;
          if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -4369,7 +4423,7 @@
                    << "Aborting!" << std::endl
                    << "----------------------------------------------------"
                    << std::endl;
- 
+
          return 1;
      }
      catch (...)
@@ -4384,7 +4438,6 @@
                    << std::endl;
          return 1;
      }
- 
+
      return 0;
  }
- 
