@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     static constexpr double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
  
  namespace InlineFunctions
@@ -1300,7 +1300,7 @@
    , inv_density_s(1. / density_s)
    , inv_density_l(1. / density_l)
    , inv_density_g(1. / density_g)
-   , present_timestep(0.5e-3)
+   , present_timestep(1.5e-3)
    , old_timestep(present_timestep)
    , fix_timestep(present_timestep)
    , cl(1.)
@@ -4147,7 +4147,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp873/";
+   const std::string prefix = "tmp874/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
