@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     static constexpr double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
 
  namespace InlineFunctions
@@ -1579,18 +1579,17 @@
 template <int dim>
 void StokesProblem<dim>::reset_aux_q(VectorType &solution)
 {
-  const auto &unit_support_points = fe.base_element(component_ids.phi_ch).get_unit_support_points();
-  const Quadrature<dim> supporting_quadrature(unit_support_points);
-
+  const QGauss<dim> quadrature_formula(fe.degree + 1);
   FEValues<dim> fe_values(mapping,
                           fe,
-                          supporting_quadrature,
+                          quadrature_formula,
                           update_values);
 
-  const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
-  AssertDimension(dofs_per_cell, unit_support_points.size());
+  const unsigned int n_q_points = quadrature_formula.size();
+  std::vector<double> phi_values(n_q_points);
+  std::vector<double> psi_values(n_q_points);
 
-  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+  std::vector<types::global_dof_index> local_dof_indices(fe.n_dofs_per_cell());
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     if (cell->is_locally_owned())
@@ -1598,25 +1597,42 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
       fe_values.reinit(cell);
       cell->get_dof_indices(local_dof_indices);
 
-      for (unsigned int i = 0; i < dofs_per_cell; ++i)
+      // 从当前解中提取 φ 和 ψ 的值
+      fe_values[extractors.phi_ch].get_function_values(solution, phi_values);
+      fe_values[extractors.psi_ac].get_function_values(solution, psi_values);
+
+      for (unsigned int i = 0; i < fe.dofs_per_cell; ++i)
       {
-        const double phi_value = fe_values[extractors.phi_ch].value(i, 0);
-        const double psi_value = fe_values[extractors.psi_ac].value(i, 0);
+        const unsigned int component = fe.system_to_component_index(i).first;
 
-        double q_reset = std::sqrt(InlineFunctions::F(phi_value,
-                                                      psi_value,
-                                                      eps,
-                                                      lambda_phi,
-                                                      lambda_psi,
-                                                      latent_heat,
-                                                      initial_temperature,
-                                                      melting_t) +
-                                   SimpliedModelParameters::aux_c);
+        if (component == extractors.aux_q.component)
+        {
+          // 以所有 quadrature 点上的 q 的平均值作为 DoF 值
+          double avg_q = 0.0;
+          for (unsigned int q = 0; q < n_q_points; ++q)
+          {
+            const double F_val = InlineFunctions::F(phi_values[q],
+                                                    psi_values[q],
+                                                    eps,
+                                                    lambda_phi,
+                                                    lambda_psi,
+                                                    latent_heat,
+                                                    initial_temperature,
+                                                    melting_t);
+            const double q_val = std::sqrt(std::max(F_val + SimpliedModelParameters::aux_c, 1e-14));
+            avg_q += q_val;
+          }
+          avg_q /= n_q_points;
 
-        solution(local_dof_indices[component_ids.aux_q]) = q_reset;
+          // 更新该 DoF 上的 q
+          solution[local_dof_indices[i]] = avg_q;
+        }
       }
     }
 }
+
+
+
 
 
  template <int dim>
@@ -4192,7 +4208,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp877/";
+   const std::string prefix = "tmp878/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
