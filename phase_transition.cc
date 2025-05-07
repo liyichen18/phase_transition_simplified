@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     static constexpr double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
 
  namespace InlineFunctions
@@ -1577,61 +1577,67 @@
  }
 
 template <int dim>
-void StokesProblem<dim>::reset_aux_q(VectorType &solution)
+void Step55::StokesProblem<dim>::reset_aux_q(VectorType &solution)
 {
-  const QGauss<dim> quadrature_formula(fe.degree + 1);
-  FEValues<dim> fe_values(mapping,
-                          fe,
-                          quadrature_formula,
-                          update_values);
+  const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-  const unsigned int n_q_points = quadrature_formula.size();
-  std::vector<double> phi_values(n_q_points);
-  std::vector<double> psi_values(n_q_points);
-
-  std::vector<types::global_dof_index> local_dof_indices(fe.n_dofs_per_cell());
+  std::vector<double> dof_phi(dofs_per_cell, 0.0);
+  std::vector<double> dof_psi(dofs_per_cell, 0.0);
 
   for (const auto &cell : dof_handler.active_cell_iterators())
-    if (cell->is_locally_owned())
+  {
+    cell->get_dof_indices(local_dof_indices);
+
+    // 保存phi/psi值
+    for (unsigned int i = 0; i < dofs_per_cell; ++i)
     {
-      fe_values.reinit(cell);
-      cell->get_dof_indices(local_dof_indices);
+      const auto component_i = fe.system_to_component_index(i).first;
+      const auto shape_i = fe.system_to_component_index(i).second;
 
-      // 从当前解中提取 φ 和 ψ 的值
-      fe_values[extractors.phi_ch].get_function_values(solution, phi_values);
-      fe_values[extractors.psi_ac].get_function_values(solution, psi_values);
+      if (component_i == extractors.phi_ch.component)
+        dof_phi[i] = solution(local_dof_indices[i]);
 
-      for (unsigned int i = 0; i < fe.dofs_per_cell; ++i)
+      if (component_i == extractors.psi_ac.component)
+        dof_psi[i] = solution(local_dof_indices[i]);
+    }
+
+    // 使用 phi_i 和 psi_i 来重设 aux_q
+    for (unsigned int i = 0; i < dofs_per_cell; ++i)
+    {
+      const auto component_i = fe.system_to_component_index(i).first;
+      const auto shape_i = fe.system_to_component_index(i).second;
+
+      if (component_i == extractors.aux_q.component)
       {
-        const unsigned int component = fe.system_to_component_index(i).first;
-
-        if (component == extractors.aux_q.component)
+        // 找到当前 aux_q 点 i 所对应 shape function 的 phi 和 psi 值
+        for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
-          // 以所有 quadrature 点上的 q 的平均值作为 DoF 值
-          double avg_q = 0.0;
-          for (unsigned int q = 0; q < n_q_points; ++q)
-          {
-            const double F_val = InlineFunctions::F(phi_values[q],
-                                                    psi_values[q],
-                                                    eps,
-                                                    lambda_phi,
-                                                    lambda_psi,
-                                                    latent_heat,
-                                                    initial_temperature,
-                                                    melting_t);
-            const double q_val = std::sqrt(std::max(F_val + SimpliedModelParameters::aux_c, 1e-14));
-            avg_q += q_val;
-          }
-          avg_q /= n_q_points;
+          const auto component_j = fe.system_to_component_index(j).first;
+          const auto shape_j = fe.system_to_component_index(j).second;
 
-          // 更新该 DoF 上的 q
-          solution[local_dof_indices[i]] = avg_q;
+          if (shape_j == shape_i)
+          {
+            double phi_val = 0.0;
+            double psi_val = 0.0;
+
+            if (component_j == extractors.phi_ch.component)
+              phi_val = dof_phi[j];
+
+            if (component_j == extractors.psi_ac.component)
+              psi_val = dof_psi[j];
+
+            const double F = compute_free_energy_density(phi_val, psi_val);
+            const double q_val = std::sqrt(F + aux_q_regularization_constant);
+            solution(local_dof_indices[i]) = q_val;
+          }
         }
       }
     }
+  }
+
+  solution.compress(VectorOperation::insert);
 }
-
-
 
 
 
@@ -4208,7 +4214,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp879/";
+   const std::string prefix = "tmp881/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4346,12 +4352,13 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
          current_solution = old_solution; // u^*, newton initial guess
 
          // 每50步 reset aux_q
-        if (step_number % 50 == 0)
+        if (step_number % 10 == 0)
         {
           pcout << "Resetting aux_q at step " << step_number << std::endl;
           reset_aux_q(old_solution);
           reset_aux_q(old_old_solution);
         }
+        
 
 
          newton_iteration();
