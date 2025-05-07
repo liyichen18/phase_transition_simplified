@@ -1577,67 +1577,68 @@
  }
 
 template <int dim>
-void Step55::StokesProblem<dim>::reset_aux_q(VectorType &solution)
+void StokesProblem<dim>::reset_aux_q(VectorType &solution)
 {
-  const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
-  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+  // 获取 component 索引
+  const auto component_index_aux_q = extractors.aux_q.component;
+  const auto component_index_phi   = extractors.phi_ch.component;
+  const auto component_index_psi   = extractors.psi_ac.component;
 
-  std::vector<double> dof_phi(dofs_per_cell, 0.0);
-  std::vector<double> dof_psi(dofs_per_cell, 0.0);
+  double max_diff = 0;
+
+  // 获取 unit 支持点
+  const auto &unit_support_points = fe.get_unit_support_points();
+  AssertDimension(fe.dofs_per_cell, unit_support_points.size());
+
+  const Quadrature<dim> supporting_quadrature(unit_support_points);
+  FEValues<dim> fe_values(mapping,
+                          fe,
+                          supporting_quadrature,
+                          update_values);
+
+  std::vector<types::global_dof_index> local_dof_indices(fe.dofs_per_cell);
 
   for (const auto &cell : dof_handler.active_cell_iterators())
-  {
-    cell->get_dof_indices(local_dof_indices);
-
-    // 保存phi/psi值
-    for (unsigned int i = 0; i < dofs_per_cell; ++i)
+    if (cell->is_locally_owned())
     {
-      const auto component_i = fe.system_to_component_index(i).first;
-      const auto shape_i = fe.system_to_component_index(i).second;
+      fe_values.reinit(cell);
+      cell->get_dof_indices(local_dof_indices);
 
-      if (component_i == extractors.phi_ch.component)
-        dof_phi[i] = solution(local_dof_indices[i]);
+      std::vector<double> phi_vals(fe.dofs_per_cell);
+      std::vector<double> psi_vals(fe.dofs_per_cell);
 
-      if (component_i == extractors.psi_ac.component)
-        dof_psi[i] = solution(local_dof_indices[i]);
-    }
+      fe_values[extractors.phi_ch].get_function_values(solution, phi_vals);
+      fe_values[extractors.psi_ac].get_function_values(solution, psi_vals);
 
-    // 使用 phi_i 和 psi_i 来重设 aux_q
-    for (unsigned int i = 0; i < dofs_per_cell; ++i)
-    {
-      const auto component_i = fe.system_to_component_index(i).first;
-      const auto shape_i = fe.system_to_component_index(i).second;
-
-      if (component_i == extractors.aux_q.component)
+      for (unsigned int i = 0; i < fe.dofs_per_cell; ++i)
       {
-        // 找到当前 aux_q 点 i 所对应 shape function 的 phi 和 psi 值
-        for (unsigned int j = 0; j < dofs_per_cell; ++j)
-        {
-          const auto component_j = fe.system_to_component_index(j).first;
-          const auto shape_j = fe.system_to_component_index(j).second;
+        const unsigned int comp_i = fe.system_to_component_index(i).first;
 
-          if (shape_j == shape_i)
-          {
-            double phi_val = 0.0;
-            double psi_val = 0.0;
+        if (comp_i != component_index_aux_q)
+          continue;
 
-            if (component_j == extractors.phi_ch.component)
-              phi_val = dof_phi[j];
+        const double phi_val = phi_vals[i];
+        const double psi_val = psi_vals[i];
 
-            if (component_j == extractors.psi_ac.component)
-              psi_val = dof_psi[j];
-
-            const double F = compute_free_energy_density(phi_val, psi_val);
-            const double q_val = std::sqrt(F + aux_q_regularization_constant);
-            solution(local_dof_indices[i]) = q_val;
-          }
-        }
+        const double F = InlineFunctions::F(phi_val,
+          psi_val,
+          eps,
+          lambda_phi,
+          lambda_psi,
+          latent_heat,
+          initial_temperature,
+          melting_t);
+        
+        const double q_val = std::sqrt(F + SimpliedModelParameters::aux_c);
+        max_diff = std::max(max_diff, std::abs(solution[local_dof_indices[i]] - q_val));
+        solution[local_dof_indices[i]] = q_val;
       }
     }
-  }
-
+  Utilities::MPI::max(max_diff, mpi_communicator);
+  pcout << "   max diff in aux_q: " << max_diff << std::endl;
   solution.compress(VectorOperation::insert);
 }
+
 
 
 
@@ -4214,7 +4215,7 @@ void Step55::StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp881/";
+   const std::string prefix = "tmp890/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4358,7 +4359,7 @@ void Step55::StokesProblem<dim>::reset_aux_q(VectorType &solution)
           reset_aux_q(old_solution);
           reset_aux_q(old_old_solution);
         }
-        
+
 
 
          newton_iteration();
