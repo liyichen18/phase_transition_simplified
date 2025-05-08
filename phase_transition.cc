@@ -1636,8 +1636,8 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
         locally_owned_solution[local_dof_indices[i]] = q_val;
       }
     }
-  Utilities::MPI::max(max_diff, mpi_communicator);
-  pcout << "   max diff in aux_q: " << max_diff << std::endl;
+  double global_diff=Utilities::MPI::max(max_diff, mpi_communicator);
+  pcout << "   max diff in aux_q: " << global_diff << std::endl;
 //  solution.compress(VectorOperation::insert);
   solution=locally_owned_solution;
 }
@@ -4218,7 +4218,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp894/";
+   const std::string prefix = "tmp895/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
