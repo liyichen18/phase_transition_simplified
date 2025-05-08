@@ -1579,6 +1579,8 @@
 template <int dim>
 void StokesProblem<dim>::reset_aux_q(VectorType &solution)
 {
+  VectorType locally_owned_solution(system_rhs);
+  locally_owned_solution=solution;
   // 获取 component 索引
   const auto component_index_aux_q = extractors.aux_q.component;
   const auto component_index_phi   = extractors.phi_ch.component;
@@ -1631,12 +1633,13 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
         
         const double q_val = std::sqrt(F + SimpliedModelParameters::aux_c);
         max_diff = std::max(max_diff, std::abs(solution[local_dof_indices[i]] - q_val));
-        solution[local_dof_indices[i]] = q_val;
+        locally_owned_solution[local_dof_indices[i]] = q_val;
       }
     }
   Utilities::MPI::max(max_diff, mpi_communicator);
   pcout << "   max diff in aux_q: " << max_diff << std::endl;
-  solution.compress(VectorOperation::insert);
+//  solution.compress(VectorOperation::insert);
+  solution=locally_owned_solution;
 }
 
 
@@ -4215,7 +4218,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp893/";
+   const std::string prefix = "tmp894/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
