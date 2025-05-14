@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     static constexpr double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
 
  namespace InlineFunctions
@@ -898,7 +898,7 @@
  
              //const double initial_solid_layer = 0.2; // has to below melting temperature
              //const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
-             const double psi = 1.0;
+             const double psi = 0.0;
 
              // const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
 
@@ -4219,7 +4219,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp903/";
+   const std::string prefix = "tmp904/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4357,7 +4357,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
          current_solution = old_solution; // u^*, newton initial guess
 
          // 每10步 reset aux_q
-        if (step_number % 10000000000 == 0)
+        if (step_number % 100 == 0)
         {
           pcout << "Resetting aux_q at step " << step_number << std::endl;
           reset_aux_q(old_solution);
