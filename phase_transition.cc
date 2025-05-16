@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     static constexpr double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
 
  namespace InlineFunctions
@@ -1302,7 +1302,7 @@
    , inv_density_s(1. / density_s)
    , inv_density_l(1. / density_l)
    , inv_density_g(1. / density_g)
-   , present_timestep(0.1e-3)
+   , present_timestep(0.5e-3)
    , old_timestep(present_timestep)
    , fix_timestep(present_timestep)
    , cl(1.)
@@ -1639,6 +1639,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
   double global_diff=Utilities::MPI::max(max_diff, mpi_communicator);
   pcout << "   max diff in aux_q: " << global_diff << std::endl;
 //  solution.compress(VectorOperation::insert);
+  constraints_boundary.distribute(locally_owned_solution);
   solution=locally_owned_solution;
 }
 
@@ -4218,7 +4219,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp909/";
+   const std::string prefix = "tmp910/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4356,7 +4357,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
          current_solution = old_solution; // u^*, newton initial guess
 
          // 每10步 reset aux_q
-        if (step_number % 100 == 0)
+        if (step_number % 1 == 0)
         {
           pcout << "Resetting aux_q at step " << step_number << std::endl;
           reset_aux_q(old_solution);
