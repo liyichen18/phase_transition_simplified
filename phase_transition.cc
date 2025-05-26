@@ -106,7 +106,7 @@
    {
      static constexpr double aux_c = 100;
 
-     static constexpr double const_temperature = 1.1;//T ∈ [0.9, 1.1] ∗ Tm
+     static constexpr double const_temperature = 0.9;//T ∈ [0.9, 1.1] ∗ Tm
    };
 
  namespace InlineFunctions
@@ -894,9 +894,10 @@
                }
 
              const double d = R - r;
-             const double phi = 0.5 * (1. + std::tanh(d/eps1));
+             //const double phi = 0.5 * (1. + std::tanh(d/eps1));
+             const double phi = 1;
 
-             const double initial_solid_layer = 0.2; // has to below melting temperature
+             const double initial_solid_layer = 1; // has to below melting temperature
              const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
 
              // const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
@@ -1302,7 +1303,7 @@
    , inv_density_s(1. / density_s)
    , inv_density_l(1. / density_l)
    , inv_density_g(1. / density_g)
-   , present_timestep(0.1e-3)
+   , present_timestep(0.1e-03)
    , old_timestep(present_timestep)
    , fix_timestep(present_timestep)
    , cl(1.)
@@ -3947,6 +3948,57 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
                               DataOut<dim>::type_dof_data,
                               data_component_interpretation);
 
+    // difference q and f
+        {
+      Vector<double> aux_q_difference(dof_handler.n_dofs());
+
+      const auto &fe = dof_handler.get_fe();
+      const auto component_index_aux_q = extractors.aux_q.component;
+      const auto component_index_phi = extractors.phi_ch.component;
+      const auto component_index_psi = extractors.psi_ac.component;
+
+      const Quadrature<dim> quadrature(fe.get_unit_support_points());
+      FEValues<dim> fe_values(mapping, fe, quadrature, update_values);
+      std::vector<types::global_dof_index> local_dof_indices(fe.dofs_per_cell);
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        if (cell->is_locally_owned())
+        {
+          fe_values.reinit(cell);
+          cell->get_dof_indices(local_dof_indices);
+
+          std::vector<double> phi_vals(fe.dofs_per_cell);
+          std::vector<double> psi_vals(fe.dofs_per_cell);
+          std::vector<double> aux_q_vals(fe.dofs_per_cell);
+
+          fe_values[extractors.phi_ch].get_function_values(locally_relevant_solution, phi_vals);
+          fe_values[extractors.psi_ac].get_function_values(locally_relevant_solution, psi_vals);
+          fe_values[extractors.aux_q].get_function_values(locally_relevant_solution, aux_q_vals);
+
+          for (unsigned int i = 0; i < fe.dofs_per_cell; ++i)
+          {
+            const unsigned int comp = fe.system_to_component_index(i).first;
+            if (comp != component_index_aux_q)
+              continue;
+
+            const double F = InlineFunctions::F(phi_vals[i],
+                                                psi_vals[i],
+                                                eps,
+                                                lambda_phi,
+                                                lambda_psi,
+                                                latent_heat,
+                                                initial_temperature,
+                                                melting_t);
+            const double sqrt_val = std::sqrt(F + SimpliedModelParameters::aux_c);
+            aux_q_difference[local_dof_indices[i]] = aux_q_vals[i] - sqrt_val;
+          }
+        }
+
+      aux_q_difference.compress(VectorOperation::insert);
+      data_out.add_data_vector(aux_q_difference, "aux_q_difference");
+    }
+
+
      Vector<float> subdomain(triangulation.n_active_cells());
      for (unsigned int i = 0; i < subdomain.size(); ++i)
          subdomain(i) = triangulation.locally_owned_subdomain();
@@ -4219,7 +4271,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp927/";
+   const std::string prefix = "tmp928/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4357,7 +4409,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
          current_solution = old_solution; // u^*, newton initial guess
 
          // 每10步 reset aux_q
-        if (step_number % 100 == 0)
+        if (step_number % 50 == 0)
         {
           pcout << "Resetting aux_q at step " << step_number << std::endl;
           reset_aux_q(old_solution);
