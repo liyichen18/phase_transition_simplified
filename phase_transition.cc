@@ -894,11 +894,12 @@
                }
  
              const double d = R - r;
-             const double phi = 0.5 * (1. + std::tanh(d/eps1));
- 
-             const double initial_solid_layer = 0.2; // has to below melting temperature
+             //const double phi = 0.5 * (1. + std::tanh(d/eps1));
+             const double phi = 1;
+
+             const double initial_solid_layer = 1; // has to below melting temperature
              const double psi = 0.5 * (1. + std::tanh((y - initial_solid_layer)/eps1));
- 
+
              // const double temperature_transition_function = transition_function(y, initial_solid_layer + 0.1, initial_solid_layer+0.2);
  
              // const double initial_t =
@@ -1320,7 +1321,7 @@
    , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
    #endif
    , mobility_phi(1e-4)
-   , mobility_psi(10.)
+   , mobility_psi(1.)
    , latent_heat(1)
    , melting_t(1.)
    , k_l(1.) //  thermal_conductivity(1.)
@@ -4147,7 +4148,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp968/";
+   const std::string prefix = "tmp969/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4264,7 +4265,7 @@
      while (step_number < max_step_number)
        {
          old_timestep     = present_timestep;
-         //present_timestep = std::min(fix_timestep, (1e-5) * std::pow(1.05, step_number));
+         present_timestep = std::min(fix_timestep, (1e-5) * std::pow(1.05, step_number));
  
          step_number ++;
          runtime += present_timestep;
