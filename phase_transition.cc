@@ -1323,7 +1323,7 @@
    , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/
    #endif
    , mobility_phi(1e-4)
-   , mobility_psi(20.)
+   , mobility_psi(50.)
    , latent_heat(1)
    , melting_t(1.)
    , k_l(1.) //  thermal_conductivity(1.)
@@ -4271,7 +4271,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1004/";
+   const std::string prefix = "tmp1005/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
