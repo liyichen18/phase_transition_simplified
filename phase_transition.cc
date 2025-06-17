@@ -915,15 +915,20 @@
                  else if (comp == extractors.phi_ch.component)
                    values(comp) = phi;
                  else if (comp == extractors.aux_q.component)
-                   values(comp) = sqrt(InlineFunctions::F(phi,
-                                                          psi,
-                                                          eps,
-                                                          lambda_phi,
-                                                          lambda_psi,
-                                                          latent_heat,
-                                                          initial_temperature,
-                                                          melting_temperature) +
-                                       SimpliedModelParameters::aux_c);
+                  {
+                    const double F_value = InlineFunctions::F(phi,
+                                                              psi,
+                                                              eps,
+                                                              lambda_phi,
+                                                              lambda_psi,
+                                                              latent_heat,
+                                                              initial_temperature,
+                                                              melting_temperature);
+                    if (F_value + SimpliedModelParameters::aux_c < 0)
+                        std::cout << "Warning: F + aux_c < 0: " << F_value << std::endl;
+
+                    values(comp) = sqrt(F_value + SimpliedModelParameters::aux_c);
+                  }
                  else
                    values(comp) = 0;
  
@@ -4200,7 +4205,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp996/";
+   const std::string prefix = "tmp997/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
