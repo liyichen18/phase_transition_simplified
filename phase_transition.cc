@@ -915,15 +915,20 @@
                  else if (comp == extractors.phi_ch.component)
                    values(comp) = phi;
                  else if (comp == extractors.aux_q.component)
-                   values(comp) = sqrt(InlineFunctions::F(phi,
-                                                          psi,
-                                                          eps,
-                                                          lambda_phi,
-                                                          lambda_psi,
-                                                          latent_heat,
-                                                          initial_temperature,
-                                                          melting_temperature) +
-                                       SimpliedModelParameters::aux_c);
+                  {
+                    const double F_value = InlineFunctions::F(phi,
+                                                              psi,
+                                                              eps,
+                                                              lambda_phi,
+                                                              lambda_psi,
+                                                              latent_heat,
+                                                              initial_temperature,
+                                                              melting_temperature);
+                    if (F_value + SimpliedModelParameters::aux_c < 0)
+                        std::cout << "Warning: F + aux_c < 0: " << F_value << std::endl;
+
+                    values(comp) = sqrt(F_value + SimpliedModelParameters::aux_c);
+                  }
                  else
                    values(comp) = 0;
  
@@ -1321,7 +1326,7 @@
    , lambda_psi(InlineFunctions::compute_lambda_from_h(density_l, surface_tension_psi_ac, eps, 0.159505)) /*which density should be used? for water ice  h= 0.159505, g=0.1594389483*/ 
    #endif
    , mobility_phi(1e-4)
-   , mobility_psi(50.)
+   , mobility_psi(100.)
    , latent_heat(1)
    , melting_t(1.)
    , k_l(1.) //  thermal_conductivity(1.)
@@ -4200,7 +4205,7 @@
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp994/";
+   const std::string prefix = "tmp995/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
