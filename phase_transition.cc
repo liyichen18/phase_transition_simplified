@@ -4271,7 +4271,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1014/";
+   const std::string prefix = "tmp1015/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4409,7 +4409,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
          current_solution = old_solution; // u^*, newton initial guess
 
          // 每10步 reset aux_q
-        if ((step_number <= 100 && step_number % 2 == 0) ||
+        if ((step_number <= 100 && step_number % 5 == 0) ||
             (step_number > 100 && step_number % 100 == 0))
         {
           pcout << "Resetting aux_q at step " << step_number << std::endl;
