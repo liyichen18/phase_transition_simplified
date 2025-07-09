@@ -1218,6 +1218,9 @@
 
      SimpliedModelParameters simplified_model_parameters;
 
+     double compute_total_energy() const;
+
+
 
  };
 
@@ -4256,6 +4259,46 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
      return mass;
  }
 
+template <int dim>
+double StokesProblem<dim>::compute_total_energy() const
+{
+  // 提取当前解
+  double energy = 0.0;
+
+  QGauss<dim> quadrature_formula(fe.degree + 1);
+  FEValues<dim> fe_values(fe, quadrature_formula,
+                          update_values | update_gradients | update_JxW_values);
+
+  std::vector<double> phi_values(quadrature_formula.size());
+  std::vector<double> psi_values(quadrature_formula.size());
+  std::vector<Tensor<1,dim>> grad_phi(quadrature_formula.size());
+  std::vector<Tensor<1,dim>> grad_psi(quadrature_formula.size());
+  std::vector<double> q_values(quadrature_formula.size());
+
+  for (const auto &cell : dof_handler.active_cell_iterators())
+    if (cell->is_locally_owned())
+    {
+      fe_values.reinit(cell);
+      fe_values[extractors.phi_ch].get_function_values(locally_relevant_solution, phi_values);
+      fe_values[extractors.psi_ac].get_function_values(locally_relevant_solution, psi_values);
+      fe_values[extractors.phi_ch].get_function_gradients(locally_relevant_solution, grad_phi);
+      fe_values[extractors.psi_ac].get_function_gradients(locally_relevant_solution, grad_psi);
+      fe_values[extractors.aux_q].get_function_values(locally_relevant_solution, q_values);
+
+      for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+      {
+        double grad_phi_sq = grad_phi[q]*grad_phi[q];
+        double grad_psi_sq = grad_psi[q]*grad_psi[q];
+        double q_sq = q_values[q]*q_values[q];
+        energy += (0.5*lambda_phi*grad_phi_sq + 0.5*lambda_psi*grad_psi_sq + q_sq - SimpliedModelParameters::aux_c)
+                  * fe_values.JxW(q);
+      }
+    }
+
+  // 全局累加
+  return Utilities::MPI::sum(energy, mpi_communicator);
+}
+
 
  template <int dim>
  void StokesProblem<dim>::write_mass(std::ofstream &mass_file,
@@ -4271,7 +4314,7 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1016/";
+   const std::string prefix = "tmp1017/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4384,6 +4427,14 @@ void StokesProblem<dim>::reset_aux_q(VectorType &solution)
          if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
            write_mass(mass_file, mass);
        }
+
+    double energy = compute_total_energy();
+      if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+        {
+        std::ofstream energy_file((output_dir + "energy_vs_time.txt").c_str(), std::ios::app);
+        energy_file << runtime << " " << energy << std::endl;
+        energy_file.close();
+        }
 
      while (step_number < max_step_number)
        {
