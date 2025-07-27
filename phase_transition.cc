@@ -1131,6 +1131,11 @@
      load_checkpoint(unsigned int &step_number, double &runtime);
      double compute_mass() const;
      void write_mass(std::ofstream &mass_file, const double mass) const;
+    //  void write_energy(std::ofstream &energy_file, const double time, const double energy) const
+    // {
+
+    //   energy_file << time << " " << energy << std::endl;
+    // }
  
  
      const unsigned int velocity_degree;
@@ -4186,12 +4191,20 @@ double StokesProblem<dim>::compute_total_energy() const
             << std::endl;
  }
  
+template <int dim>
+void StokesProblem<dim>::write_energy(std::ofstream &energy_file,
+                                      const double time,
+                                      const double energy) const
+{
+  energy_file << time << " " << energy << std::endl;
+}
+
  
  template <int dim>
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1018/";
+   const std::string prefix = "tmp1019/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4305,13 +4318,17 @@ double StokesProblem<dim>::compute_total_energy() const
            write_mass(mass_file, mass);
        }
 
-    double energy = compute_total_energy();
-      if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-        {
-        std::ofstream energy_file((output_dir + "energy_vs_time.txt").c_str(), std::ios::app);
-        energy_file << runtime << " " << energy << std::endl;
-        energy_file.close();
-        }
+    std::ofstream energy_file;
+    const bool track_energy = true;
+    if (track_energy)
+    {
+        energy_file.open((output_dir + "energy_vs_time.txt").c_str());
+        energy_file << std::fixed;
+        double energy = compute_total_energy();
+        if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+          write_energy(energy_file, runtime, energy); // 写入初始能量
+    }
+
  
      while (step_number < max_step_number)
        {
@@ -4337,6 +4354,13 @@ double StokesProblem<dim>::compute_total_energy() const
          current_solution = old_solution; // u^*, newton initial guess
  
          newton_iteration();
+
+         if (track_energy)
+          {
+            double energy = compute_total_energy();
+            if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+              write_energy(energy_file, runtime, energy);
+          }
  
          // {
          //   // limit psi
@@ -4386,6 +4410,9 @@ double StokesProblem<dim>::compute_total_energy() const
        pcout << std::endl;
        pcout << std::endl;
        }
+
+    if (track_energy)
+      energy_file.close();
      computing_timer.print_summary();
      computing_timer.reset();
      mass_file.close();
