@@ -4204,7 +4204,7 @@ void StokesProblem<dim>::write_energy(std::ofstream &energy_file,
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1019/";
+   const std::string prefix = "tmp1020/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
