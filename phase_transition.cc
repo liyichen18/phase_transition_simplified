@@ -4133,16 +4133,14 @@
      return mass;
  }
  
- // === [ADD] IEQ total free energy: E = ∫ (1/2*λφ|∇φ|² + 1/2*λψ*r(φ)|∇ψ|² + q² - C) dΩ ===
+// === IEQ total energy: E = ∫ (1/2*λφ|∇φ|² + 1/2*λψ*r(φ)|∇ψ|² + q² - C) dΩ ===
 template <int dim>
 double StokesProblem<dim>::compute_total_energy() const
 {
-  // 提取需要的场
   const QGauss<dim> quadrature(quadrature_degree);
-  FEValues<dim> fe_values(mapping,
-                          fe,
-                          quadrature,
-                          update_gradients | update_values | update_quadrature_points | update_JxW_values);
+  FEValues<dim> fe_values(mapping, fe, quadrature,
+                          update_values | update_gradients |
+                          update_quadrature_points | update_JxW_values);
 
   const unsigned int n_q = quadrature.size();
 
@@ -4170,28 +4168,22 @@ double StokesProblem<dim>::compute_total_energy() const
         const double grad_phi_sq = grad_phi[q] * grad_phi[q];
         const double grad_psi_sq = grad_psi[q] * grad_psi[q];
 
-        // r(phi) 已在 InlineFunctions 中定义
-        const double rphi = InlineFunctions::r(phi_val[q]);
-
-        // 梯度能 + IEQ 体能
+        const double rphi = InlineFunctions::r(phi_val[q]); // 你已实现
         double density =
             0.5 * lambda_phi * grad_phi_sq
           + 0.5 * lambda_psi * rphi * grad_psi_sq
-          + q_val[q] * q_val[q] - SimpliedModelParameters::aux_c; // (q^2 - C)
+          + q_val[q] * q_val[q] - SimpliedModelParameters::aux_c; // IEQ体能
 
         double w = fe_values.JxW(q);
 
-#ifdef USE_AXISYMMETRY
-        // 若启用轴对称：乘 2πr (r = x 方向坐标)
-        w *= 2.0 * numbers::PI * fe_values.quadrature_point(q)(0);
-#endif
+        // 如果是轴对称，请启用下行乘 2πr（平面2D请不要乘）
+        // w *= 2.0 * numbers::PI * fe_values.quadrature_point(q)(0);
+
         local_energy += density * w;
       }
     }
 
-  // MPI 归约
-  const double global_energy = Utilities::MPI::sum(local_energy, mpi_communicator);
-  return global_energy;
+  return Utilities::MPI::sum(local_energy, mpi_communicator);
 }
 
  
@@ -4209,7 +4201,7 @@ double StokesProblem<dim>::compute_total_energy() const
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1028/";
+   const std::string prefix = "tmp1029/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4308,20 +4300,9 @@ double StokesProblem<dim>::compute_total_energy() const
      }
  
      output_results(step_number);
-
-     // === [ADD] Energy file: open once & write initial energy ===
-      std::ofstream energy_file;
-      if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-      {
-        std::ofstream((output_dir + "energy_vs_time.txt").c_str(), std::ios::trunc).close();
-
-        energy_file.open((output_dir + "energy_vs_time.txt").c_str(), std::ios::app);
-        energy_file << std::fixed;
-
-        // 写入初始时刻 t=runtime(=0) 的能量
-        const double E0 = compute_total_energy();
-        energy_file << runtime << " " << std::setprecision(15) << E0 << std::endl;
-      }
+// 只在开跑前清空一次能量文件，避免拼接旧数据
+     if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+       std::ofstream((output_dir + "energy_vs_time.txt").c_str(), std::ios::trunc).close();
 
  
      // test_adaptive_refinement();
@@ -4364,15 +4345,16 @@ double StokesProblem<dim>::compute_total_energy() const
          newton_iteration();
 
          // === per-step energy output ===
-        {
-          const double energy = compute_total_energy();
-          if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
           {
-            std::ofstream energy_file((output_dir + "energy_vs_time.txt").c_str(),
-                                      std::ios::app);
-            energy_file << runtime << " " << std::setprecision(15) << energy << std::endl;
+            const double energy = compute_total_energy();
+            if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+            {
+              std::ofstream energy_file((output_dir + "energy_vs_time.txt").c_str(),
+                                        std::ios::app);
+              energy_file << std::fixed << runtime << " "
+                          << std::setprecision(15) << energy << std::endl;
+            }
           }
-        }
 
 
 
