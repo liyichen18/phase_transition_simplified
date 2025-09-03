@@ -4209,7 +4209,7 @@ double StokesProblem<dim>::compute_total_energy() const
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1024/";
+   const std::string prefix = "tmp1025/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4363,15 +4363,18 @@ double StokesProblem<dim>::compute_total_energy() const
  
          newton_iteration();
 
-// === [ADD] per-step energy output (after solution updated to t^{n+1}) ===
+         // === per-step energy output ===
         {
-          const double E = compute_total_energy();
+          const double energy = compute_total_energy();
           if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
           {
-            energy_file << runtime << " " << std::setprecision(15) << E << std::endl;
-            // energy_file.flush(); 
+            std::ofstream energy_file((output_dir + "energy_vs_time.txt").c_str(),
+                                      std::ios::app);
+            energy_file << runtime << " " << std::setprecision(15) << energy << std::endl;
           }
         }
+
+
 
 
  
@@ -4396,6 +4399,8 @@ double StokesProblem<dim>::compute_total_energy() const
            {
              TimerOutput::Scope t(computing_timer, "output");
              output_results(step_number);
+             std::ofstream((output_dir + "energy_vs_time.txt").c_str(), std::ios::trunc).close();
+
            }
  
        if(step_number%save_checkpoint_interval == 0)
