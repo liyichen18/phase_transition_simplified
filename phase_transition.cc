@@ -4209,7 +4209,7 @@ double StokesProblem<dim>::compute_total_energy() const
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1025/";
+   const std::string prefix = "tmp1026/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4399,7 +4399,7 @@ double StokesProblem<dim>::compute_total_energy() const
            {
              TimerOutput::Scope t(computing_timer, "output");
              output_results(step_number);
-             std::ofstream((output_dir + "energy_vs_time.txt").c_str(), std::ios::trunc).close();
+             //std::ofstream((output_dir + "energy_vs_time.txt").c_str(), std::ios::trunc).close();
 
            }
  
