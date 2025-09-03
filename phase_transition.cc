@@ -4314,7 +4314,7 @@ double StokesProblem<dim>::compute_total_energy() const
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1022/";
+   const std::string prefix = "tmp1023/";
 
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4436,6 +4436,21 @@ double StokesProblem<dim>::compute_total_energy() const
         // energy_file.close();
         }
 
+      std::ofstream energy_file;
+        if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+        {
+          energy_file.open((output_dir + "energy_vs_time.txt").c_str(), std::ios::app);
+        }
+
+        {
+          const double energy0 = compute_total_energy(); 
+          if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+          {
+            energy_file << runtime << " " << energy0 << std::endl;
+            // energy_file.flush(); 
+          }
+        }
+
      while (step_number < max_step_number)
        {
          old_timestep     = present_timestep;
@@ -4473,6 +4488,13 @@ double StokesProblem<dim>::compute_total_energy() const
 
          newton_iteration();
 
+        {
+          const double energy = compute_total_energy();
+          if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+          {
+            energy_file << runtime << " " << energy << std::endl;
+          }
+        }
          // {
          //   // limit psi
          //   std::vector<unsigned int> global_index_to_component(dof_handler.n_dofs(), numbers::invalid_unsigned_int);
@@ -4524,6 +4546,9 @@ double StokesProblem<dim>::compute_total_energy() const
      computing_timer.print_summary();
      computing_timer.reset();
      mass_file.close();
+
+     if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0 && energy_file.is_open())
+     energy_file.close();
  }
  } // namespace Step55
 
