@@ -4209,7 +4209,7 @@ double StokesProblem<dim>::compute_total_energy() const
  void
  StokesProblem<dim>::run()
  {
-   const std::string prefix = "tmp1027/";
+   const std::string prefix = "tmp1028/";
  
    output_dir      = "./output/" + prefix;
    checkpoints_dir = "./checkpoints/" + prefix;
@@ -4337,11 +4337,6 @@ double StokesProblem<dim>::compute_total_energy() const
          if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
            write_mass(mass_file, mass);
        }
-
-       output_results(step_number);
-     if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-        std::ofstream((output_dir + "energy_vs_time.txt").c_str(), std::ios::trunc).close();
-
  
      while (step_number < max_step_number)
        {
@@ -4368,16 +4363,16 @@ double StokesProblem<dim>::compute_total_energy() const
  
          newton_iteration();
 
-        // === per-step energy output ===
-         {
-           const double energy = compute_total_energy();
-           if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-           {
-             std::ofstream energy_file((output_dir + "energy_vs_time.txt").c_str(),
+         // === per-step energy output ===
+        {
+          const double energy = compute_total_energy();
+          if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+          {
+            std::ofstream energy_file((output_dir + "energy_vs_time.txt").c_str(),
                                       std::ios::app);
-             energy_file << runtime << " " << std::setprecision(15) << energy << std::endl;
-           }
-         }
+            energy_file << runtime << " " << std::setprecision(15) << energy << std::endl;
+          }
+        }
 
 
 
@@ -4437,8 +4432,8 @@ double StokesProblem<dim>::compute_total_energy() const
      computing_timer.reset();
      mass_file.close();
 
-     if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0 && energy_file.is_open())
-     energy_file.close();
+     //if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0 && energy_file.is_open())
+     //energy_file.close();
  }
  } // namespace Step55
  
